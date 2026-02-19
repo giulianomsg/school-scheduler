@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, Clock, Users } from "lucide-react";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export default function DepartmentDashboard() {
   const { user } = useAuth();
@@ -15,7 +16,6 @@ export default function DepartmentDashboard() {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
-      // Get department
       const { data: dept } = await supabase
         .from("departments")
         .select("*")
@@ -25,7 +25,6 @@ export default function DepartmentDashboard() {
       if (!dept) return;
       setDepartmentName(dept.name);
 
-      // Get stats
       const [totalSlots, availableSlots, activeAppts] = await Promise.all([
         supabase.from("timeslots").select("id", { count: "exact", head: true }).eq("department_id", dept.id),
         supabase.from("timeslots").select("id", { count: "exact", head: true }).eq("department_id", dept.id).eq("is_available", true),
@@ -38,7 +37,6 @@ export default function DepartmentDashboard() {
         activeAppointments: activeAppts.count ?? 0,
       });
 
-      // Today's appointments
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
       const todayEnd = new Date();
@@ -60,35 +58,35 @@ export default function DepartmentDashboard() {
 
   const statusBadge = (status: string) => (
     <Badge variant="outline" className={status === "active" ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}>
-      {status}
+      {status === "active" ? "Ativo" : "Cancelado"}
     </Badge>
   );
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Department Dashboard</h1>
-        <p className="text-muted-foreground">{departmentName || "Loading..."}</p>
+        <h1 className="text-2xl font-bold text-foreground">Painel do Setor</h1>
+        <p className="text-muted-foreground">{departmentName || "Carregando..."}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Total Timeslots</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total de Horários</CardTitle>
             <Clock className="h-5 w-5 text-primary" />
           </CardHeader>
           <CardContent><div className="text-3xl font-bold">{stats.totalSlots}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Available</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Disponíveis</CardTitle>
             <CalendarDays className="h-5 w-5 text-success" />
           </CardHeader>
           <CardContent><div className="text-3xl font-bold">{stats.availableSlots}</div></CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Active Bookings</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Agendamentos Ativos</CardTitle>
             <Users className="h-5 w-5 text-secondary" />
           </CardHeader>
           <CardContent><div className="text-3xl font-bold">{stats.activeAppointments}</div></CardContent>
@@ -97,11 +95,11 @@ export default function DepartmentDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Today's Appointments</CardTitle>
+          <CardTitle>Agendamentos de Hoje</CardTitle>
         </CardHeader>
         <CardContent>
           {todayAppointments.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No appointments for today.</p>
+            <p className="text-muted-foreground text-center py-8">Nenhum agendamento para hoje.</p>
           ) : (
             <div className="space-y-3">
               {todayAppointments.map((appt) => (

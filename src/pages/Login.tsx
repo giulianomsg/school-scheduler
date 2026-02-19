@@ -23,8 +23,8 @@ export default function Login() {
       navigate("/");
     } catch (error: any) {
       toast({
-        title: "Login failed",
-        description: error.message || "Invalid credentials",
+        title: "Falha no login",
+        description: error.message || "Credenciais inválidas",
         variant: "destructive",
       });
     } finally {
@@ -40,30 +40,30 @@ export default function Login() {
             <Building2 className="h-8 w-8 text-primary-foreground" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Education Department
+            Secretaria de Educação
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Appointment Scheduling System
+            Sistema de Agendamento
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Sign In</CardTitle>
+            <CardTitle>Entrar</CardTitle>
             <CardDescription>
-              Access is invite-only. Enter your credentials to continue.
+              Acesso somente por convite. Insira suas credenciais para continuar.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email">E-mail</Label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
                     id="email"
                     type="email"
-                    placeholder="you@example.com"
+                    placeholder="voce@exemplo.com"
                     className="pl-9"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -72,7 +72,7 @@ export default function Login() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password">Senha</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -87,7 +87,7 @@ export default function Login() {
                 </div>
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Signing in..." : "Sign In"}
+                {isLoading ? "Entrando..." : "Entrar"}
               </Button>
             </form>
           </CardContent>

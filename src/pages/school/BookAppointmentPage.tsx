@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { CalendarDays, Clock } from "lucide-react";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Department = Tables<"departments">;
@@ -50,7 +51,7 @@ export default function BookAppointmentPage() {
 
   const handleBook = async () => {
     if (!user || !selectedSlot || !description.trim()) {
-      toast({ title: "Please select a timeslot and add a description", variant: "destructive" });
+      toast({ title: "Selecione um horário e adicione uma descrição", variant: "destructive" });
       return;
     }
     setBooking(true);
@@ -60,12 +61,11 @@ export default function BookAppointmentPage() {
       description,
     });
     if (error) {
-      toast({ title: "Booking failed", description: error.message, variant: "destructive" });
+      toast({ title: "Falha no agendamento", description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "Appointment booked successfully!" });
+      toast({ title: "Agendamento realizado com sucesso!" });
       setDescription("");
       setSelectedSlot("");
-      // Refresh timeslots
       if (selectedDept) {
         const { data } = await supabase
           .from("timeslots")
@@ -83,23 +83,23 @@ export default function BookAppointmentPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Book Appointment</h1>
-        <p className="text-muted-foreground">Select a department and available timeslot</p>
+        <h1 className="text-2xl font-bold text-foreground">Agendar Atendimento</h1>
+        <p className="text-muted-foreground">Selecione um setor e um horário disponível</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CalendarDays className="h-5 w-5 text-primary" />
-            Schedule
+            Agendamento
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label>Department</Label>
+            <Label>Setor</Label>
             <Select value={selectedDept} onValueChange={setSelectedDept}>
               <SelectTrigger>
-                <SelectValue placeholder="Choose a department" />
+                <SelectValue placeholder="Escolha um setor" />
               </SelectTrigger>
               <SelectContent>
                 {departments.map((d) => (
@@ -111,11 +111,11 @@ export default function BookAppointmentPage() {
 
           {selectedDept && (
             <div className="space-y-2">
-              <Label>Available Timeslots</Label>
+              <Label>Horários Disponíveis</Label>
               {loadingSlots ? (
-                <p className="text-sm text-muted-foreground">Loading...</p>
+                <p className="text-sm text-muted-foreground">Carregando...</p>
               ) : timeslots.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No available timeslots for this department.</p>
+                <p className="text-sm text-muted-foreground">Nenhum horário disponível para este setor.</p>
               ) : (
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   {timeslots.map((ts) => (
@@ -130,7 +130,7 @@ export default function BookAppointmentPage() {
                     >
                       <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
                       <div>
-                        <p className="text-sm font-medium">{format(new Date(ts.start_time), "MMM dd, yyyy")}</p>
+                        <p className="text-sm font-medium">{format(new Date(ts.start_time), "dd/MM/yyyy", { locale: ptBR })}</p>
                         <p className="text-xs text-muted-foreground">
                           {format(new Date(ts.start_time), "HH:mm")} - {format(new Date(ts.end_time), "HH:mm")}
                         </p>
@@ -144,11 +144,11 @@ export default function BookAppointmentPage() {
 
           {selectedSlot && (
             <div className="space-y-2">
-              <Label>Description / Reason</Label>
+              <Label>Descrição / Motivo</Label>
               <Textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Briefly describe the purpose of your visit..."
+                placeholder="Descreva brevemente o motivo da sua visita..."
                 rows={3}
               />
             </div>
@@ -156,7 +156,7 @@ export default function BookAppointmentPage() {
 
           {selectedSlot && description.trim() && (
             <Button onClick={handleBook} disabled={booking} className="w-full sm:w-auto">
-              {booking ? "Booking..." : "Confirm Booking"}
+              {booking ? "Agendando..." : "Confirmar Agendamento"}
             </Button>
           )}
         </CardContent>

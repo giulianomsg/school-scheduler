@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export default function TimeslotsPage() {
   const { user } = useAuth();
@@ -19,7 +20,6 @@ export default function TimeslotsPage() {
   const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
 
-  // Bulk generation fields
   const [bulkDate, setBulkDate] = useState("");
   const [startHour, setStartHour] = useState("08:00");
   const [endHour, setEndHour] = useState("17:00");
@@ -56,15 +56,12 @@ export default function TimeslotsPage() {
 
   const handleBulkGenerate = async () => {
     if (!departmentId || !bulkDate || !startHour || !endHour) {
-      toast({ title: "Please fill all fields", variant: "destructive" });
+      toast({ title: "Preencha todos os campos", variant: "destructive" });
       return;
     }
 
     const duration = parseInt(slotDuration);
     const slots: { department_id: string; start_time: string; end_time: string }[] = [];
-
-    const [sh, sm] = startHour.split(":").map(Number);
-    const [eh, em] = endHour.split(":").map(Number);
 
     let current = new Date(`${bulkDate}T${startHour}:00`);
     const end = new Date(`${bulkDate}T${endHour}:00`);
@@ -81,17 +78,17 @@ export default function TimeslotsPage() {
     }
 
     if (slots.length === 0) {
-      toast({ title: "No slots could be generated", variant: "destructive" });
+      toast({ title: "Nenhum horário pôde ser gerado", variant: "destructive" });
       return;
     }
 
     const { error } = await supabase.from("timeslots").insert(slots);
     if (error) {
-      toast({ title: "Error generating slots", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao gerar horários", description: error.message, variant: "destructive" });
       return;
     }
 
-    toast({ title: `${slots.length} timeslots created` });
+    toast({ title: `${slots.length} horários criados` });
     setIsOpen(false);
     fetchTimeslots(departmentId);
   };
@@ -99,17 +96,17 @@ export default function TimeslotsPage() {
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("timeslots").delete().eq("id", id);
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Timeslot deleted" });
+    toast({ title: "Horário excluído" });
     if (departmentId) fetchTimeslots(departmentId);
   };
 
   if (!departmentId && !loading) {
     return (
       <div className="p-8 text-center text-muted-foreground animate-fade-in">
-        You are not assigned as head of any department.
+        Você não está atribuído como responsável de nenhum setor.
       </div>
     );
   }
@@ -118,37 +115,37 @@ export default function TimeslotsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Timeslots</h1>
-          <p className="text-muted-foreground">Generate and manage available timeslots</p>
+          <h1 className="text-2xl font-bold text-foreground">Horários</h1>
+          <p className="text-muted-foreground">Gere e gerencie horários disponíveis</p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> Generate Slots</Button>
+            <Button><Plus className="mr-2 h-4 w-4" /> Gerar Horários</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Bulk Generate Timeslots</DialogTitle>
+              <DialogTitle>Gerar Horários em Lote</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Date</Label>
+                <Label>Data</Label>
                 <Input type="date" value={bulkDate} onChange={(e) => setBulkDate(e.target.value)} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Start Time</Label>
+                  <Label>Hora Início</Label>
                   <Input type="time" value={startHour} onChange={(e) => setStartHour(e.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <Label>End Time</Label>
+                  <Label>Hora Fim</Label>
                   <Input type="time" value={endHour} onChange={(e) => setEndHour(e.target.value)} />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Slot Duration (minutes)</Label>
+                <Label>Duração do Horário (minutos)</Label>
                 <Input type="number" value={slotDuration} onChange={(e) => setSlotDuration(e.target.value)} min="15" step="15" />
               </div>
-              <Button onClick={handleBulkGenerate} className="w-full">Generate</Button>
+              <Button onClick={handleBulkGenerate} className="w-full">Gerar</Button>
             </div>
           </DialogContent>
         </Dialog>
@@ -157,27 +154,27 @@ export default function TimeslotsPage() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-8 text-center text-muted-foreground">Loading...</div>
+            <div className="p-8 text-center text-muted-foreground">Carregando...</div>
           ) : timeslots.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No timeslots yet. Generate some to get started.</div>
+            <div className="p-8 text-center text-muted-foreground">Nenhum horário ainda. Gere alguns para começar.</div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Time</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Horário</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-16">Actions</TableHead>
+                  <TableHead className="w-16">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {timeslots.map((ts) => (
                   <TableRow key={ts.id}>
-                    <TableCell>{format(new Date(ts.start_time), "MMM dd, yyyy")}</TableCell>
+                    <TableCell>{format(new Date(ts.start_time), "dd/MM/yyyy", { locale: ptBR })}</TableCell>
                     <TableCell>{format(new Date(ts.start_time), "HH:mm")} - {format(new Date(ts.end_time), "HH:mm")}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={ts.is_available ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}>
-                        {ts.is_available ? "Available" : "Booked"}
+                        {ts.is_available ? "Disponível" : "Ocupado"}
                       </Badge>
                     </TableCell>
                     <TableCell>

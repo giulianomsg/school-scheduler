@@ -11,9 +11,14 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Send } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
-import type { Enums } from "@/integrations/supabase/types";
 
 type Profile = Tables<"profiles">;
+
+const roleLabels: Record<string, string> = {
+  admin: "Administrador",
+  department: "Setor",
+  school: "Escola",
+};
 
 const roleBadgeClasses: Record<string, string> = {
   admin: "bg-destructive/10 text-destructive border-destructive/20",
@@ -42,7 +47,7 @@ export default function UsersPage() {
 
   const handleInvite = async () => {
     if (!inviteEmail.trim()) {
-      toast({ title: "Email is required", variant: "destructive" });
+      toast({ title: "E-mail é obrigatório", variant: "destructive" });
       return;
     }
     setInviteLoading(true);
@@ -56,7 +61,7 @@ export default function UsersPage() {
         },
       });
       if (error) throw error;
-      toast({ title: "Invitation sent", description: `Invite email sent to ${inviteEmail}` });
+      toast({ title: "Convite enviado", description: `E-mail de convite enviado para ${inviteEmail}` });
       setIsInviteOpen(false);
       setInviteEmail("");
       setInviteName("");
@@ -64,7 +69,7 @@ export default function UsersPage() {
       setInviteSchoolUnit("");
       fetchProfiles();
     } catch (error: any) {
-      toast({ title: "Invite failed", description: error.message, variant: "destructive" });
+      toast({ title: "Falha no convite", description: error.message, variant: "destructive" });
     } finally {
       setInviteLoading(false);
     }
@@ -74,50 +79,50 @@ export default function UsersPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">User Management</h1>
-          <p className="text-muted-foreground">Invite users and manage roles</p>
+          <h1 className="text-2xl font-bold text-foreground">Gerenciamento de Usuários</h1>
+          <p className="text-muted-foreground">Convide usuários e gerencie perfis</p>
         </div>
         <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
           <DialogTrigger asChild>
             <Button>
-              <Plus className="mr-2 h-4 w-4" /> Invite User
+              <Plus className="mr-2 h-4 w-4" /> Convidar Usuário
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Invite New User</DialogTitle>
+              <DialogTitle>Convidar Novo Usuário</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Email</Label>
-                <Input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="user@example.com" type="email" />
+                <Label>E-mail</Label>
+                <Input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="usuario@exemplo.com" type="email" />
               </div>
               <div className="space-y-2">
-                <Label>Name</Label>
-                <Input value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="Full Name" />
+                <Label>Nome</Label>
+                <Input value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="Nome Completo" />
               </div>
               <div className="space-y-2">
-                <Label>Role</Label>
+                <Label>Perfil</Label>
                 <Select value={inviteRole} onValueChange={setInviteRole}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="admin">Admin</SelectItem>
-                    <SelectItem value="department">Department</SelectItem>
-                    <SelectItem value="school">School</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
+                    <SelectItem value="department">Setor</SelectItem>
+                    <SelectItem value="school">Escola</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               {inviteRole === "school" && (
                 <div className="space-y-2">
-                  <Label>School Unit</Label>
-                  <Input value={inviteSchoolUnit} onChange={(e) => setInviteSchoolUnit(e.target.value)} placeholder="e.g. School #12" />
+                  <Label>Unidade Escolar</Label>
+                  <Input value={inviteSchoolUnit} onChange={(e) => setInviteSchoolUnit(e.target.value)} placeholder="Ex.: Escola Municipal nº 12" />
                 </div>
               )}
               <Button onClick={handleInvite} className="w-full" disabled={inviteLoading}>
                 <Send className="mr-2 h-4 w-4" />
-                {inviteLoading ? "Sending..." : "Send Invitation"}
+                {inviteLoading ? "Enviando..." : "Enviar Convite"}
               </Button>
             </div>
           </DialogContent>
@@ -127,17 +132,17 @@ export default function UsersPage() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-8 text-center text-muted-foreground">Loading...</div>
+            <div className="p-8 text-center text-muted-foreground">Carregando...</div>
           ) : profiles.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No users yet.</div>
+            <div className="p-8 text-center text-muted-foreground">Nenhum usuário ainda.</div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>School Unit</TableHead>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>E-mail</TableHead>
+                  <TableHead>Perfil</TableHead>
+                  <TableHead>Unidade Escolar</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -147,7 +152,7 @@ export default function UsersPage() {
                     <TableCell>{p.email}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={roleBadgeClasses[p.role]}>
-                        {p.role}
+                        {roleLabels[p.role] || p.role}
                       </Badge>
                     </TableCell>
                     <TableCell>{p.school_unit || "—"}</TableCell>

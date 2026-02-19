@@ -15,11 +15,9 @@ export default function SetPassword() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Check if we have a recovery/invite session from the URL hash
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
     const type = hashParams.get("type");
     if (type !== "invite" && type !== "recovery") {
-      // Try to check if there's an active session
       supabase.auth.getSession().then(({ data }) => {
         if (!data.session) {
           navigate("/login");
@@ -31,22 +29,22 @@ export default function SetPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (password !== confirmPassword) {
-      toast({ title: "Passwords do not match", variant: "destructive" });
+      toast({ title: "As senhas não coincidem", variant: "destructive" });
       return;
     }
     if (password.length < 6) {
-      toast({ title: "Password must be at least 6 characters", variant: "destructive" });
+      toast({ title: "A senha deve ter pelo menos 6 caracteres", variant: "destructive" });
       return;
     }
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
-      toast({ title: "Password set successfully!" });
+      toast({ title: "Senha definida com sucesso!" });
       navigate("/");
     } catch (error: any) {
       toast({
-        title: "Error setting password",
+        title: "Erro ao definir senha",
         description: error.message,
         variant: "destructive",
       });
@@ -63,24 +61,24 @@ export default function SetPassword() {
             <Building2 className="h-8 w-8 text-primary-foreground" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Set Your Password
+            Defina Sua Senha
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Create a secure password for your account
+            Crie uma senha segura para sua conta
           </p>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle>Create Password</CardTitle>
+            <CardTitle>Criar Senha</CardTitle>
             <CardDescription>
-              Choose a strong password with at least 6 characters.
+              Escolha uma senha forte com pelo menos 6 caracteres.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="password">New Password</Label>
+                <Label htmlFor="password">Nova Senha</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -95,7 +93,7 @@ export default function SetPassword() {
                 </div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Label htmlFor="confirmPassword">Confirmar Senha</Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -110,7 +108,7 @@ export default function SetPassword() {
                 </div>
               </div>
               <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? "Setting password..." : "Set Password & Continue"}
+                {isLoading ? "Definindo senha..." : "Definir Senha e Continuar"}
               </Button>
             </form>
           </CardContent>

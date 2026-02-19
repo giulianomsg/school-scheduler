@@ -17,9 +17,9 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 
 const roleLabels: Record<string, string> = {
-  admin: "Administrator",
-  department: "Department Head",
-  school: "School Director",
+  admin: "Administrador",
+  department: "Chefe de Setor",
+  school: "Diretor Escolar",
 };
 
 const roleColors: Record<string, string> = {
@@ -51,8 +51,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <Building2 className="h-5 w-5 text-sidebar-primary-foreground" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-sidebar-foreground">EduSchedule</p>
-              <p className="text-xs text-sidebar-foreground/60">Municipal Dept.</p>
+              <p className="text-sm font-semibold text-sidebar-foreground">Agenda SME</p>
+              <p className="text-xs text-sidebar-foreground/60">Sec. de Educação</p>
             </div>
           </div>
 
@@ -92,7 +92,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               onClick={handleSignOut}
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
+              Sair
             </Button>
           </div>
         </div>
@@ -105,7 +105,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
               <Building2 className="h-4 w-4 text-sidebar-primary-foreground" />
             </div>
-            <span className="text-sm font-semibold text-sidebar-foreground">EduSchedule</span>
+            <span className="text-sm font-semibold text-sidebar-foreground">Agenda SME</span>
           </div>
           <Button
             variant="ghost"
@@ -144,7 +144,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               onClick={handleSignOut}
             >
               <LogOut className="mr-2 h-4 w-4" />
-              Sign Out
+              Sair
             </Button>
           </div>
         )}
@@ -163,21 +163,21 @@ function getNavItems(role?: string) {
 
   if (role === "admin") {
     items.push(
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/departments", label: "Departments", icon: Building2 },
-      { href: "/users", label: "User Management", icon: Users }
+      { href: "/", label: "Painel", icon: LayoutDashboard },
+      { href: "/departments", label: "Setores", icon: Building2 },
+      { href: "/users", label: "Usuários", icon: Users }
     );
   } else if (role === "department") {
     items.push(
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/timeslots", label: "Timeslots", icon: Clock },
-      { href: "/calendar", label: "Calendar", icon: CalendarDays }
+      { href: "/", label: "Painel", icon: LayoutDashboard },
+      { href: "/timeslots", label: "Horários", icon: Clock },
+      { href: "/calendar", label: "Calendário", icon: CalendarDays }
     );
   } else {
     items.push(
-      { href: "/", label: "Dashboard", icon: LayoutDashboard },
-      { href: "/book", label: "Book Appointment", icon: CalendarDays },
-      { href: "/my-appointments", label: "My Appointments", icon: School }
+      { href: "/", label: "Painel", icon: LayoutDashboard },
+      { href: "/book", label: "Agendar", icon: CalendarDays },
+      { href: "/my-appointments", label: "Meus Agendamentos", icon: School }
     );
   }
 

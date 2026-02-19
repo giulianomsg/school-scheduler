@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 export default function CalendarPage() {
   const { user } = useAuth();
@@ -55,26 +56,26 @@ export default function CalendarPage() {
 
   const statusBadge = (status: string) => (
     <Badge variant="outline" className={status === "active" ? "bg-success/10 text-success border-success/20" : "bg-destructive/10 text-destructive border-destructive/20"}>
-      {status}
+      {status === "active" ? "Ativo" : "Cancelado"}
     </Badge>
   );
 
   if (!departmentId && !loading) {
-    return <div className="p-8 text-center text-muted-foreground">You are not assigned as head of any department.</div>;
+    return <div className="p-8 text-center text-muted-foreground">Você não está atribuído como responsável de nenhum setor.</div>;
   }
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Weekly Calendar</h1>
+          <h1 className="text-2xl font-bold text-foreground">Calendário Semanal</h1>
           <p className="text-muted-foreground">
-            {format(weekDays[0], "MMM dd")} - {format(weekDays[6], "MMM dd, yyyy")}
+            {format(weekDays[0], "dd MMM", { locale: ptBR })} - {format(weekDays[6], "dd MMM yyyy", { locale: ptBR })}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={prevWeek}><ChevronLeft className="h-4 w-4" /></Button>
-          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>Today</Button>
+          <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>Hoje</Button>
           <Button variant="outline" size="icon" onClick={nextWeek}><ChevronRight className="h-4 w-4" /></Button>
         </div>
       </div>
@@ -90,7 +91,7 @@ export default function CalendarPage() {
             <Card key={day.toISOString()} className={isToday ? "ring-2 ring-primary" : ""}>
               <CardHeader className="py-3 px-4">
                 <CardTitle className="text-xs font-medium">
-                  <span className="text-muted-foreground">{format(day, "EEE")}</span>
+                  <span className="text-muted-foreground">{format(day, "EEE", { locale: ptBR })}</span>
                   <br />
                   <span className={`text-lg ${isToday ? "text-primary" : ""}`}>{format(day, "dd")}</span>
                 </CardTitle>
