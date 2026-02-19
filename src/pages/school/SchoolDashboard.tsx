@@ -7,10 +7,11 @@ import { CalendarDays, CheckCircle, XCircle } from "lucide-react";
 export default function SchoolDashboard() {
   const { user, profile } = useAuth();
   const [stats, setStats] = useState({ active: 0, cancelled: 0, total: 0 });
+  const [schoolName, setSchoolName] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
-    const fetch = async () => {
+    const fetchData = async () => {
       const [active, cancelled] = await Promise.all([
         supabase.from("appointments").select("id", { count: "exact", head: true }).eq("requester_id", user.id).eq("status", "active"),
         supabase.from("appointments").select("id", { count: "exact", head: true }).eq("requester_id", user.id).eq("status", "cancelled"),
@@ -20,15 +21,20 @@ export default function SchoolDashboard() {
         cancelled: cancelled.count ?? 0,
         total: (active.count ?? 0) + (cancelled.count ?? 0),
       });
+
+      if (profile?.school_unit_id) {
+        const { data } = await supabase.from("unidades_escolares").select("nome_escola").eq("id", profile.school_unit_id).single();
+        setSchoolName(data?.nome_escola || null);
+      }
     };
-    fetch();
-  }, [user]);
+    fetchData();
+  }, [user, profile]);
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Bem-vindo(a), {profile?.name || "Diretor(a)"}</h1>
-        <p className="text-muted-foreground">{profile?.school_unit || "Painel da Escola"}</p>
+        <p className="text-muted-foreground">{schoolName || "Painel da Escola"}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-3">

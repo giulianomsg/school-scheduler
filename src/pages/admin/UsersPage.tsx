@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Send } from "lucide-react";
+import SchoolUnitCombobox from "@/components/SchoolUnitCombobox";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Profile = Tables<"profiles">;
@@ -27,19 +28,28 @@ const roleBadgeClasses: Record<string, string> = {
 };
 
 export default function UsersPage() {
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [profiles, setProfiles] = useState<(Profile & { unidade?: { nome_escola: string } | null })[]>([]);
   const [loading, setLoading] = useState(true);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("school");
-  const [inviteSchoolUnit, setInviteSchoolUnit] = useState("");
+  const [inviteSchoolUnitId, setInviteSchoolUnitId] = useState("");
+  const [inviteCargo, setInviteCargo] = useState("");
+  const [inviteWhatsapp, setInviteWhatsapp] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
 
   const fetchProfiles = async () => {
     setLoading(true);
-    const { data } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
-    setProfiles(data || []);
+    const { data } = await supabase
+      .from("profiles")
+      .select("*, unidades_escolares(nome_escola)")
+      .order("created_at", { ascending: false });
+    const mapped = (data || []).map((p: any) => ({
+      ...p,
+      unidade: p.unidades_escolares,
+    }));
+    setProfiles(mapped);
     setLoading(false);
   };
 
@@ -57,7 +67,9 @@ export default function UsersPage() {
           email: inviteEmail,
           name: inviteName,
           role: inviteRole,
-          school_unit: inviteSchoolUnit || null,
+          school_unit_id: inviteSchoolUnitId || null,
+          cargo: inviteCargo || null,
+          whatsapp: inviteWhatsapp || null,
         },
       });
       if (error) throw error;
@@ -66,7 +78,9 @@ export default function UsersPage() {
       setInviteEmail("");
       setInviteName("");
       setInviteRole("school");
-      setInviteSchoolUnit("");
+      setInviteSchoolUnitId("");
+      setInviteCargo("");
+      setInviteWhatsapp("");
       fetchProfiles();
     } catch (error: any) {
       toast({ title: "Falha no convite", description: error.message, variant: "destructive" });
@@ -88,7 +102,7 @@ export default function UsersPage() {
               <Plus className="mr-2 h-4 w-4" /> Convidar Usuário
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Convidar Novo Usuário</DialogTitle>
             </DialogHeader>
@@ -104,9 +118,7 @@ export default function UsersPage() {
               <div className="space-y-2">
                 <Label>Perfil</Label>
                 <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Administrador</SelectItem>
                     <SelectItem value="department">Setor</SelectItem>
@@ -117,9 +129,17 @@ export default function UsersPage() {
               {inviteRole === "school" && (
                 <div className="space-y-2">
                   <Label>Unidade Escolar</Label>
-                  <Input value={inviteSchoolUnit} onChange={(e) => setInviteSchoolUnit(e.target.value)} placeholder="Ex.: Escola Municipal nº 12" />
+                  <SchoolUnitCombobox value={inviteSchoolUnitId} onChange={setInviteSchoolUnitId} />
                 </div>
               )}
+              <div className="space-y-2">
+                <Label>Cargo</Label>
+                <Input value={inviteCargo} onChange={(e) => setInviteCargo(e.target.value)} placeholder="Ex.: Diretor(a)" />
+              </div>
+              <div className="space-y-2">
+                <Label>WhatsApp</Label>
+                <Input value={inviteWhatsapp} onChange={(e) => setInviteWhatsapp(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
+              </div>
               <Button onClick={handleInvite} className="w-full" disabled={inviteLoading}>
                 <Send className="mr-2 h-4 w-4" />
                 {inviteLoading ? "Enviando..." : "Enviar Convite"}
@@ -136,30 +156,34 @@ export default function UsersPage() {
           ) : profiles.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">Nenhum usuário ainda.</div>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nome</TableHead>
-                  <TableHead>E-mail</TableHead>
-                  <TableHead>Perfil</TableHead>
-                  <TableHead>Unidade Escolar</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {profiles.map((p) => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.name || "—"}</TableCell>
-                    <TableCell>{p.email}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={roleBadgeClasses[p.role]}>
-                        {roleLabels[p.role] || p.role}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>{p.school_unit || "—"}</TableCell>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nome</TableHead>
+                    <TableHead>E-mail</TableHead>
+                    <TableHead>Perfil</TableHead>
+                    <TableHead>Unidade Escolar</TableHead>
+                    <TableHead>Cargo</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {profiles.map((p) => (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">{p.name || "—"}</TableCell>
+                      <TableCell>{p.email}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={roleBadgeClasses[p.role]}>
+                          {roleLabels[p.role] || p.role}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{p.unidade?.nome_escola || "—"}</TableCell>
+                      <TableCell>{p.cargo || "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>

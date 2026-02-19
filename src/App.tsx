@@ -11,6 +11,8 @@ import SetPassword from "@/pages/SetPassword";
 import Index from "@/pages/Index";
 import DepartmentsPage from "@/pages/admin/DepartmentsPage";
 import UsersPage from "@/pages/admin/UsersPage";
+import SchoolUnitsPage from "@/pages/admin/SchoolUnitsPage";
+import ProfilePage from "@/pages/ProfilePage";
 import TimeslotsPage from "@/pages/department/TimeslotsPage";
 import CalendarPage from "@/pages/department/CalendarPage";
 import BookAppointmentPage from "@/pages/school/BookAppointmentPage";
@@ -31,9 +33,11 @@ const App = () => (
             <Route path="/set-password" element={<SetPassword />} />
 
             <Route path="/" element={<ProtectedRoute><AppLayout><Index /></AppLayout></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />
 
             {/* Admin routes */}
             <Route path="/departments" element={<ProtectedRoute allowedRoles={["admin"]}><AppLayout><DepartmentsPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/school-units" element={<ProtectedRoute allowedRoles={["admin"]}><AppLayout><SchoolUnitsPage /></AppLayout></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute allowedRoles={["admin"]}><AppLayout><UsersPage /></AppLayout></ProtectedRoute>} />
 
             {/* Department routes */}
