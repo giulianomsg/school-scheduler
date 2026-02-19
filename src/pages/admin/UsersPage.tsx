@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Send } from "lucide-react";
+import { Plus, Send, Pencil, Save } from "lucide-react";
 import SchoolUnitCombobox from "@/components/SchoolUnitCombobox";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -39,6 +39,16 @@ export default function UsersPage() {
   const [inviteWhatsapp, setInviteWhatsapp] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
 
+  // Edit state
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editProfile, setEditProfile] = useState<Profile | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editRole, setEditRole] = useState<string>("school");
+  const [editCargo, setEditCargo] = useState("");
+  const [editWhatsapp, setEditWhatsapp] = useState("");
+  const [editSchoolUnitId, setEditSchoolUnitId] = useState("");
+  const [editLoading, setEditLoading] = useState(false);
+
   const fetchProfiles = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -54,6 +64,40 @@ export default function UsersPage() {
   };
 
   useEffect(() => { fetchProfiles(); }, []);
+
+  const openEdit = (p: Profile) => {
+    setEditProfile(p);
+    setEditName(p.name || "");
+    setEditRole(p.role);
+    setEditCargo(p.cargo || "");
+    setEditWhatsapp(p.whatsapp || "");
+    setEditSchoolUnitId(p.school_unit_id || "");
+    setIsEditOpen(true);
+  };
+
+  const handleEditSave = async () => {
+    if (!editProfile) return;
+    setEditLoading(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        name: editName,
+        role: editRole as any,
+        cargo: editCargo || null,
+        whatsapp: editWhatsapp || null,
+        school_unit_id: editRole === "school" ? (editSchoolUnitId || null) : null,
+      })
+      .eq("id", editProfile.id);
+
+    if (error) {
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Usuário atualizado com sucesso" });
+      setIsEditOpen(false);
+      fetchProfiles();
+    }
+    setEditLoading(false);
+  };
 
   const handleInvite = async () => {
     if (!inviteEmail.trim()) {
@@ -149,6 +193,54 @@ export default function UsersPage() {
         </Dialog>
       </div>
 
+      {/* Edit User Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-4">
+            <div className="space-y-2">
+              <Label>E-mail</Label>
+              <Input value={editProfile?.email || ""} disabled />
+            </div>
+            <div className="space-y-2">
+              <Label>Nome</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Perfil</Label>
+              <Select value={editRole} onValueChange={setEditRole}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin">Administrador</SelectItem>
+                  <SelectItem value="department">Setor</SelectItem>
+                  <SelectItem value="school">Escola</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {editRole === "school" && (
+              <div className="space-y-2">
+                <Label>Unidade Escolar</Label>
+                <SchoolUnitCombobox value={editSchoolUnitId} onChange={setEditSchoolUnitId} />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Cargo</Label>
+              <Input value={editCargo} onChange={(e) => setEditCargo(e.target.value)} placeholder="Ex.: Diretor(a)" />
+            </div>
+            <div className="space-y-2">
+              <Label>WhatsApp</Label>
+              <Input value={editWhatsapp} onChange={(e) => setEditWhatsapp(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
+            </div>
+            <Button onClick={handleEditSave} className="w-full" disabled={editLoading}>
+              <Save className="mr-2 h-4 w-4" />
+              {editLoading ? "Salvando..." : "Salvar Alterações"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
@@ -165,6 +257,7 @@ export default function UsersPage() {
                     <TableHead>Perfil</TableHead>
                     <TableHead>Unidade Escolar</TableHead>
                     <TableHead>Cargo</TableHead>
+                    <TableHead className="w-20">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -179,6 +272,11 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell>{p.unidade?.nome_escola || "—"}</TableCell>
                       <TableCell>{p.cargo || "—"}</TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(p)} title="Editar">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
