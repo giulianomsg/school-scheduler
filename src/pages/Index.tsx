@@ -1,14 +1,14 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import { useAuth } from "@/contexts/AuthContext";
+import AdminDashboard from "@/pages/admin/AdminDashboard";
+import DepartmentDashboard from "@/pages/department/DepartmentDashboard";
+import SchoolDashboard from "@/pages/school/SchoolDashboard";
 
 const Index = () => {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
-    </div>
-  );
+  const { profile } = useAuth();
+
+  if (profile?.role === "admin") return <AdminDashboard />;
+  if (profile?.role === "department") return <DepartmentDashboard />;
+  return <SchoolDashboard />;
 };
 
 export default Index;
