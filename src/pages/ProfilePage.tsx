@@ -7,14 +7,21 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { Save } from "lucide-react";
-import SchoolUnitCombobox from "@/components/SchoolUnitCombobox";
+
+function SchoolUnitDisplay({ schoolUnitId }: { schoolUnitId: string }) {
+  const [name, setName] = useState("");
+  useEffect(() => {
+    supabase.from("unidades_escolares").select("nome_escola").eq("id", schoolUnitId).single()
+      .then(({ data }) => setName(data?.nome_escola || "—"));
+  }, [schoolUnitId]);
+  return <Input value={name} disabled />;
+}
 
 export default function ProfilePage() {
   const { user, profile } = useAuth();
   const [name, setName] = useState("");
   const [cargo, setCargo] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
-  const [schoolUnitId, setSchoolUnitId] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -22,7 +29,6 @@ export default function ProfilePage() {
       setName(profile.name || "");
       setCargo(profile.cargo || "");
       setWhatsapp(profile.whatsapp || "");
-      setSchoolUnitId(profile.school_unit_id || "");
     }
   }, [profile]);
 
@@ -35,10 +41,8 @@ export default function ProfilePage() {
         name,
         cargo: cargo || null,
         whatsapp: whatsapp || null,
-        school_unit_id: schoolUnitId || null,
       })
       .eq("id", user.id);
-
     if (error) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } else {
@@ -75,10 +79,10 @@ export default function ProfilePage() {
             <Label>WhatsApp</Label>
             <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
           </div>
-          {profile?.role === "school" && (
+          {profile?.role === "school" && profile?.school_unit_id && (
             <div className="space-y-2">
               <Label>Unidade Escolar</Label>
-              <SchoolUnitCombobox value={schoolUnitId} onChange={setSchoolUnitId} />
+              <SchoolUnitDisplay schoolUnitId={profile.school_unit_id} />
             </div>
           )}
           <Button onClick={handleSave} disabled={saving}>
