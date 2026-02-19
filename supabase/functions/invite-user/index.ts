@@ -20,26 +20,20 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify the caller is an admin
     const supabaseUser = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } }
     );
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } =
-      await supabaseUser.auth.getClaims(token);
-    if (claimsError || !claimsData?.claims) {
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
+    if (userError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const userId = claimsData.claims.sub;
-
-    // Check admin role
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -48,7 +42,7 @@ Deno.serve(async (req) => {
     const { data: callerProfile } = await supabaseAdmin
       .from("profiles")
       .select("role")
-      .eq("id", userId)
+      .eq("id", user.id)
       .single();
 
     if (callerProfile?.role !== "admin") {
@@ -58,7 +52,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, name, role, school_unit } = await req.json();
+    const { email, name, role, school_unit_id, cargo, whatsapp } = await req.json();
 
     if (!email) {
       return new Response(JSON.stringify({ error: "Email is required" }), {
@@ -67,13 +61,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create user with Supabase Admin API (sends invite email)
     const { data: inviteData, error: inviteError } =
       await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
         data: {
           name: name || "",
           role: role || "school",
-          school_unit: school_unit || null,
         },
         redirectTo: `${req.headers.get("origin") || Deno.env.get("SUPABASE_URL")}/set-password`,
       });
@@ -83,6 +75,15 @@ Deno.serve(async (req) => {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // Update profile with additional fields after creation
+    if (inviteData.user) {
+      await supabaseAdmin.from("profiles").update({
+        school_unit_id: school_unit_id || null,
+        cargo: cargo || null,
+        whatsapp: whatsapp || null,
+      }).eq("id", inviteData.user.id);
     }
 
     return new Response(JSON.stringify({ user: inviteData.user }), {

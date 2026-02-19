@@ -90,33 +90,47 @@ export type Database = {
       }
       profiles: {
         Row: {
+          cargo: string | null
           created_at: string
           email: string
           id: string
           name: string
           role: Database["public"]["Enums"]["app_role"]
-          school_unit: string | null
+          school_unit_id: string | null
           updated_at: string
+          whatsapp: string | null
         }
         Insert: {
+          cargo?: string | null
           created_at?: string
           email: string
           id: string
           name?: string
           role?: Database["public"]["Enums"]["app_role"]
-          school_unit?: string | null
+          school_unit_id?: string | null
           updated_at?: string
+          whatsapp?: string | null
         }
         Update: {
+          cargo?: string | null
           created_at?: string
           email?: string
           id?: string
           name?: string
           role?: Database["public"]["Enums"]["app_role"]
-          school_unit?: string | null
+          school_unit_id?: string | null
           updated_at?: string
+          whatsapp?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_school_unit_id_fkey"
+            columns: ["school_unit_id"]
+            isOneToOne: false
+            referencedRelation: "unidades_escolares"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       timeslots: {
         Row: {
@@ -152,6 +166,60 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      unidades_escolares: {
+        Row: {
+          bairro_escola: string | null
+          celular_escola: string | null
+          created_at: string
+          email_escola: string | null
+          endereco_escola: string | null
+          etapa_ano: string | null
+          id: string
+          macro_regiao: string | null
+          nome_escola: string
+          numero_endereco: string | null
+          telefone_escola: string | null
+          telefone_escola2: string | null
+          tipo_escola: string | null
+          updated_at: string
+          whatsapp_escola: string | null
+        }
+        Insert: {
+          bairro_escola?: string | null
+          celular_escola?: string | null
+          created_at?: string
+          email_escola?: string | null
+          endereco_escola?: string | null
+          etapa_ano?: string | null
+          id?: string
+          macro_regiao?: string | null
+          nome_escola: string
+          numero_endereco?: string | null
+          telefone_escola?: string | null
+          telefone_escola2?: string | null
+          tipo_escola?: string | null
+          updated_at?: string
+          whatsapp_escola?: string | null
+        }
+        Update: {
+          bairro_escola?: string | null
+          celular_escola?: string | null
+          created_at?: string
+          email_escola?: string | null
+          endereco_escola?: string | null
+          etapa_ano?: string | null
+          id?: string
+          macro_regiao?: string | null
+          nome_escola?: string
+          numero_endereco?: string | null
+          telefone_escola?: string | null
+          telefone_escola2?: string | null
+          tipo_escola?: string | null
+          updated_at?: string
+          whatsapp_escola?: string | null
+        }
+        Relationships: []
       }
     }
     Views: {

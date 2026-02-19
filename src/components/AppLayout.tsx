@@ -12,6 +12,7 @@ import {
   Clock,
   Menu,
   X,
+  User,
 } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -165,19 +166,23 @@ function getNavItems(role?: string) {
     items.push(
       { href: "/", label: "Painel", icon: LayoutDashboard },
       { href: "/departments", label: "Setores", icon: Building2 },
-      { href: "/users", label: "Usuários", icon: Users }
+      { href: "/school-units", label: "Unidades Escolares", icon: School },
+      { href: "/users", label: "Usuários", icon: Users },
+      { href: "/profile", label: "Meu Perfil", icon: User }
     );
   } else if (role === "department") {
     items.push(
       { href: "/", label: "Painel", icon: LayoutDashboard },
       { href: "/timeslots", label: "Horários", icon: Clock },
-      { href: "/calendar", label: "Calendário", icon: CalendarDays }
+      { href: "/calendar", label: "Calendário", icon: CalendarDays },
+      { href: "/profile", label: "Meu Perfil", icon: User }
     );
   } else {
     items.push(
       { href: "/", label: "Painel", icon: LayoutDashboard },
       { href: "/book", label: "Agendar", icon: CalendarDays },
-      { href: "/my-appointments", label: "Meus Agendamentos", icon: School }
+      { href: "/my-appointments", label: "Meus Agendamentos", icon: School },
+      { href: "/profile", label: "Meu Perfil", icon: User }
     );
   }
 
