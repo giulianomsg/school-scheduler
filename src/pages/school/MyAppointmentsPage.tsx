@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { CalendarDays } from "lucide-react";
 
 export default function MyAppointmentsPage() {
@@ -33,10 +34,10 @@ export default function MyAppointmentsPage() {
       .update({ status: "cancelled" as const })
       .eq("id", appointmentId);
     if (error) {
-      toast({ title: "Error cancelling", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Appointment cancelled" });
+    toast({ title: "Agendamento cancelado" });
     fetchAppointments();
   };
 
@@ -49,24 +50,24 @@ export default function MyAppointmentsPage() {
           : "bg-destructive/10 text-destructive border-destructive/20"
       }
     >
-      {status === "active" ? "Active" : "Cancelled"}
+      {status === "active" ? "Ativo" : "Cancelado"}
     </Badge>
   );
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">My Appointments</h1>
-        <p className="text-muted-foreground">View and manage your scheduled appointments</p>
+        <h1 className="text-2xl font-bold text-foreground">Meus Agendamentos</h1>
+        <p className="text-muted-foreground">Visualize e gerencie seus agendamentos</p>
       </div>
 
       {loading ? (
-        <div className="text-center py-8 text-muted-foreground">Loading...</div>
+        <div className="text-center py-8 text-muted-foreground">Carregando...</div>
       ) : appointments.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <CalendarDays className="mx-auto h-12 w-12 text-muted-foreground/40 mb-4" />
-            <p className="text-muted-foreground">No appointments yet. Book one to get started.</p>
+            <p className="text-muted-foreground">Nenhum agendamento ainda. Agende um para começar.</p>
           </CardContent>
         </Card>
       ) : (
@@ -76,11 +77,11 @@ export default function MyAppointmentsPage() {
               <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium">{appt.timeslots?.departments?.name || "Department"}</p>
+                    <p className="font-medium">{appt.timeslots?.departments?.name || "Setor"}</p>
                     {statusBadge(appt.status)}
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {format(new Date(appt.timeslots.start_time), "MMM dd, yyyy")} ·{" "}
+                    {format(new Date(appt.timeslots.start_time), "dd/MM/yyyy", { locale: ptBR })} ·{" "}
                     {format(new Date(appt.timeslots.start_time), "HH:mm")} -{" "}
                     {format(new Date(appt.timeslots.end_time), "HH:mm")}
                   </p>
@@ -88,7 +89,7 @@ export default function MyAppointmentsPage() {
                 </div>
                 {appt.status === "active" && (
                   <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/5" onClick={() => handleCancel(appt.id)}>
-                    Cancel
+                    Cancelar
                   </Button>
                 )}
               </CardContent>

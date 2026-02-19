@@ -44,7 +44,7 @@ export default function DepartmentsPage() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      toast({ title: "Name is required", variant: "destructive" });
+      toast({ title: "Nome é obrigatório", variant: "destructive" });
       return;
     }
 
@@ -53,14 +53,14 @@ export default function DepartmentsPage() {
         .from("departments")
         .update({ name, head_id: headId || null })
         .eq("id", editingDept.id);
-      if (error) { toast({ title: "Error updating", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "Department updated" });
+      if (error) { toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" }); return; }
+      toast({ title: "Setor atualizado" });
     } else {
       const { error } = await supabase
         .from("departments")
         .insert({ name, head_id: headId || null });
-      if (error) { toast({ title: "Error creating", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "Department created" });
+      if (error) { toast({ title: "Erro ao criar", description: error.message, variant: "destructive" }); return; }
+      toast({ title: "Setor criado" });
     }
 
     setIsOpen(false);
@@ -72,8 +72,8 @@ export default function DepartmentsPage() {
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("departments").delete().eq("id", id);
-    if (error) { toast({ title: "Error deleting", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Department deleted" });
+    if (error) { toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }); return; }
+    toast({ title: "Setor excluído" });
     fetchData();
   };
 
@@ -95,29 +95,29 @@ export default function DepartmentsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Departments</h1>
-          <p className="text-muted-foreground">Manage departments and their heads</p>
+          <h1 className="text-2xl font-bold text-foreground">Setores</h1>
+          <p className="text-muted-foreground">Gerencie setores e seus responsáveis</p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button onClick={openCreate}>
-              <Plus className="mr-2 h-4 w-4" /> Add Department
+              <Plus className="mr-2 h-4 w-4" /> Adicionar Setor
             </Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{editingDept ? "Edit Department" : "Create Department"}</DialogTitle>
+              <DialogTitle>{editingDept ? "Editar Setor" : "Criar Setor"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-4">
               <div className="space-y-2">
-                <Label>Department Name</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Human Resources" />
+                <Label>Nome do Setor</Label>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Recursos Humanos" />
               </div>
               <div className="space-y-2">
-                <Label>Department Head</Label>
+                <Label>Responsável do Setor</Label>
                 <Select value={headId} onValueChange={setHeadId}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a head (optional)" />
+                    <SelectValue placeholder="Selecione um responsável (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
                     {departmentUsers.map((u) => (
@@ -129,7 +129,7 @@ export default function DepartmentsPage() {
                 </Select>
               </div>
               <Button onClick={handleSave} className="w-full">
-                {editingDept ? "Update" : "Create"}
+                {editingDept ? "Atualizar" : "Criar"}
               </Button>
             </div>
           </DialogContent>
@@ -139,16 +139,16 @@ export default function DepartmentsPage() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-8 text-center text-muted-foreground">Loading...</div>
+            <div className="p-8 text-center text-muted-foreground">Carregando...</div>
           ) : departments.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">No departments yet. Create one to get started.</div>
+            <div className="p-8 text-center text-muted-foreground">Nenhum setor ainda. Crie um para começar.</div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Head</TableHead>
-                  <TableHead className="w-24">Actions</TableHead>
+                  <TableHead>Nome</TableHead>
+                  <TableHead>Responsável</TableHead>
+                  <TableHead className="w-24">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

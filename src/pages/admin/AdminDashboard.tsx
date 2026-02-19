@@ -25,17 +25,17 @@ export default function AdminDashboard() {
   }, []);
 
   const cards = [
-    { title: "Total Users", value: stats.users, icon: Users, color: "text-primary" },
-    { title: "Departments", value: stats.departments, icon: Building2, color: "text-secondary" },
-    { title: "Active Appointments", value: stats.appointments, icon: CalendarDays, color: "text-success" },
-    { title: "School Units", value: stats.schools, icon: School, color: "text-warning" },
+    { title: "Total de Usuários", value: stats.users, icon: Users, color: "text-primary" },
+    { title: "Setores", value: stats.departments, icon: Building2, color: "text-secondary" },
+    { title: "Agendamentos Ativos", value: stats.appointments, icon: CalendarDays, color: "text-success" },
+    { title: "Unidades Escolares", value: stats.schools, icon: School, color: "text-warning" },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
-        <p className="text-muted-foreground">Overview of the scheduling system</p>
+        <h1 className="text-2xl font-bold text-foreground">Painel Administrativo</h1>
+        <p className="text-muted-foreground">Visão geral do sistema de agendamento</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
