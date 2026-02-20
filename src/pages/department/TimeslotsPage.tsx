@@ -29,13 +29,13 @@ export default function TimeslotsPage() {
     if (!user) return;
     const fetchDept = async () => {
       const { data } = await supabase
-        .from("departments")
-        .select("id")
-        .eq("head_id", user.id)
+        .from("profiles")
+        .select("department_id")
+        .eq("id", user.id)
         .single();
-      if (data) {
-        setDepartmentId(data.id);
-        fetchTimeslots(data.id);
+      if (data?.department_id) {
+        setDepartmentId(data.department_id);
+        fetchTimeslots(data.department_id);
       } else {
         setLoading(false);
       }
@@ -106,7 +106,7 @@ export default function TimeslotsPage() {
   if (!departmentId && !loading) {
     return (
       <div className="p-8 text-center text-muted-foreground animate-fade-in">
-        Você não está atribuído como responsável de nenhum setor.
+        Você ainda não foi vinculado a nenhum setor. Contate o administrador.
       </div>
     );
   }

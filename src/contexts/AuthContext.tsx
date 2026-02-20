@@ -33,7 +33,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (event, session) => {
+        if (event === "TOKEN_REFRESHED" && !session) {
+          // Token rejeitado (usuário suspenso) — forçar logout
+          await supabase.auth.signOut();
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          window.location.href = "/";
+          return;
+        }
+        if (event === "SIGNED_OUT") {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+          setLoading(false);
+          return;
+        }
         setSession(session);
         setUser(session?.user ?? null);
         if (session?.user) {

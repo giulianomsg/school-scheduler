@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -30,9 +30,10 @@ export default function DepartmentsPage() {
       supabase.from("profiles").select("*").eq("role", "department"),
     ]);
 
+    // Enrich: find user whose department_id matches the department
     const enriched = (depts || []).map((d) => ({
       ...d,
-      head: users?.find((u) => u.id === d.head_id),
+      head: users?.find((u) => u.department_id === d.id),
     }));
 
     setDepartments(enriched);
@@ -51,18 +52,27 @@ export default function DepartmentsPage() {
     if (editingDept) {
       const { error } = await supabase
         .from("departments")
-        .update({ name, head_id: headId || null })
+        .update({ name })
         .eq("id", editingDept.id);
       if (error) { toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "Setor atualizado" });
     } else {
       const { error } = await supabase
         .from("departments")
-        .insert({ name, head_id: headId || null });
+        .insert({ name });
       if (error) { toast({ title: "Erro ao criar", description: error.message, variant: "destructive" }); return; }
-      toast({ title: "Setor criado" });
     }
 
+    // Update the selected user's department_id
+    if (headId && editingDept) {
+      // Clear previous head if any
+      const prevHead = departmentUsers.find((u) => u.department_id === editingDept.id);
+      if (prevHead && prevHead.id !== headId) {
+        await supabase.from("profiles").update({ department_id: null }).eq("id", prevHead.id);
+      }
+      await supabase.from("profiles").update({ department_id: editingDept.id }).eq("id", headId);
+    }
+
+    toast({ title: editingDept ? "Setor atualizado" : "Setor criado" });
     setIsOpen(false);
     setEditingDept(null);
     setName("");
@@ -77,10 +87,10 @@ export default function DepartmentsPage() {
     fetchData();
   };
 
-  const openEdit = (dept: Department) => {
+  const openEdit = (dept: Department & { head?: Profile }) => {
     setEditingDept(dept);
     setName(dept.name);
-    setHeadId(dept.head_id || "");
+    setHeadId(dept.head?.id || "");
     setIsOpen(true);
   };
 

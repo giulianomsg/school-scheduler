@@ -22,9 +22,13 @@ export default function Login() {
       await signIn(email, password);
       navigate("/");
     } catch (error: any) {
+      const msg = (error.message || "").toLowerCase();
+      const isBanned = msg.includes("banned") || msg.includes("suspended") || msg.includes("ban");
       toast({
-        title: "Falha no login",
-        description: error.message || "Credenciais inválidas",
+        title: isBanned ? "Conta Suspensa" : "Falha no login",
+        description: isBanned
+          ? "Seu acesso foi suspenso pelo administrador."
+          : error.message || "Credenciais inválidas",
         variant: "destructive",
       });
     } finally {
