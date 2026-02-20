@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, name, role, school_unit_id, cargo, whatsapp } = await req.json();
+    const { email, name, role, school_unit_id, department_id, cargo, whatsapp } = await req.json();
 
     if (!email) {
       return new Response(JSON.stringify({ error: "Email is required" }), {
@@ -81,6 +81,7 @@ Deno.serve(async (req) => {
     if (inviteData.user) {
       await supabaseAdmin.from("profiles").update({
         school_unit_id: school_unit_id || null,
+        department_id: department_id || null,
         cargo: cargo || null,
         whatsapp: whatsapp || null,
       }).eq("id", inviteData.user.id);

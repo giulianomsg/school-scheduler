@@ -17,6 +17,15 @@ function SchoolUnitDisplay({ schoolUnitId }: { schoolUnitId: string }) {
   return <Input value={name} disabled />;
 }
 
+function DepartmentDisplay({ departmentId }: { departmentId: string }) {
+  const [name, setName] = useState("");
+  useEffect(() => {
+    supabase.from("departments").select("name").eq("id", departmentId).single()
+      .then(({ data }) => setName(data?.name || "—"));
+  }, [departmentId]);
+  return <Input value={name} disabled />;
+}
+
 export default function ProfilePage() {
   const { user, profile } = useAuth();
   const [name, setName] = useState("");
@@ -83,6 +92,12 @@ export default function ProfilePage() {
             <div className="space-y-2">
               <Label>Unidade Escolar</Label>
               <SchoolUnitDisplay schoolUnitId={profile.school_unit_id} />
+            </div>
+          )}
+          {profile?.role === "department" && (profile as any)?.department_id && (
+            <div className="space-y-2">
+              <Label>Setor</Label>
+              <DepartmentDisplay departmentId={(profile as any).department_id} />
             </div>
           )}
           <Button onClick={handleSave} disabled={saving}>

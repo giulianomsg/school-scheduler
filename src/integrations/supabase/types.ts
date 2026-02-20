@@ -92,6 +92,7 @@ export type Database = {
         Row: {
           cargo: string | null
           created_at: string
+          department_id: string | null
           email: string
           id: string
           name: string
@@ -103,6 +104,7 @@ export type Database = {
         Insert: {
           cargo?: string | null
           created_at?: string
+          department_id?: string | null
           email: string
           id: string
           name?: string
@@ -114,6 +116,7 @@ export type Database = {
         Update: {
           cargo?: string | null
           created_at?: string
+          department_id?: string | null
           email?: string
           id?: string
           name?: string
@@ -123,6 +126,13 @@ export type Database = {
           whatsapp?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_school_unit_id_fkey"
             columns: ["school_unit_id"]
@@ -227,6 +237,7 @@ export type Database = {
     }
     Functions: {
       get_head_department_id: { Args: { _user_id: string }; Returns: string }
+      get_user_department_id: { Args: { _user_id: string }; Returns: string }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
