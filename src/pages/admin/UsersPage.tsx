@@ -70,18 +70,31 @@ export default function UsersPage() {
   // Action loading (for suspend/reactivate/links)
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  const fetchProfiles = async () => {
+const fetchProfiles = async () => {
     setLoading(true);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .select("*, unidades_escolares(nome_escola), departments(name)")
       .order("created_at", { ascending: false });
-    const mapped = (data || []).map((p: any) => ({
-      ...p,
-      unidade: p.unidades_escolares,
-      departamento: p.departments,
-    }));
-    setProfiles(mapped);
+
+    // Novo bloco de tratamento de erro
+    if (error) {
+      toast({ 
+        title: "Erro ao carregar usuários", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+      console.error("Erro no fetchProfiles:", error);
+      setProfiles([]);
+    } else {
+      const mapped = (data || []).map((p: any) => ({
+        ...p,
+        unidade: p.unidades_escolares,
+        departamento: p.departments,
+      }));
+      setProfiles(mapped);
+    }
+    
     setLoading(false);
   };
 
