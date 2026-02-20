@@ -74,7 +74,7 @@ const fetchProfiles = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("profiles")
-      .select("*, unidades_escolares(nome_escola), departments(name)")
+      .select("*, unidades_escolares(nome_escola), departments!department_id(name)")
       .order("created_at", { ascending: false });
 
     // Novo bloco de tratamento de erro
