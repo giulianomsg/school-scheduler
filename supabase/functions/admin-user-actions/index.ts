@@ -81,6 +81,8 @@ Deno.serve(async (req) => {
           ban_duration: "876600h", // ~100 years
         });
         if (error) throw error;
+        // Invalidar todas as sessões ativas do usuário
+        await supabaseAdmin.auth.admin.signOut(userId, "global");
         result = { success: true, message: "Usuário suspenso com sucesso" };
         break;
       }

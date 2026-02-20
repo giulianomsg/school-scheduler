@@ -16,10 +16,18 @@ export default function DepartmentDashboard() {
   useEffect(() => {
     if (!user) return;
     const fetchData = async () => {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("department_id")
+        .eq("id", user.id)
+        .single();
+
+      if (!profile?.department_id) return;
+
       const { data: dept } = await supabase
         .from("departments")
         .select("*")
-        .eq("head_id", user.id)
+        .eq("id", profile.department_id)
         .single();
 
       if (!dept) return;
