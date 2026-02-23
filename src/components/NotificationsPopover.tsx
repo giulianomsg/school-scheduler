@@ -56,6 +56,10 @@ export default function NotificationsPopover() {
         (payload) => {
           const newNotif = payload.new as Notification;
           setNotifications((prev) => [newNotif, ...prev]);
+          toast({
+                  title: payload.new.title,
+                  description: payload.new.message,
+                });          
         }
       )
       .subscribe();
