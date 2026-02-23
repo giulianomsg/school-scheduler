@@ -28,17 +28,58 @@ export default function MyAppointmentsPage() {
 
   useEffect(() => { fetchAppointments(); }, [user]);
 
-  const handleCancel = async (appointmentId: string) => {
-    const { error } = await supabase
-      .from("appointments")
-      .update({ status: "cancelled" as const })
-      .eq("id", appointmentId);
-    if (error) {
-      toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" });
+const handleCancel = async (appointmentId: string, startTime: string, departmentId: string) => {
+    // 1. Verificação de Cooldown (2 horas)
+    const appointmentTime = new Date(startTime).getTime();
+    const now = new Date().getTime();
+    const hoursDifference = (appointmentTime - now) / (1000 * 60 * 60);
+
+    if (hoursDifference < 2 && hoursDifference > 0) {
+      toast({
+        title: "Ação não permitida",
+        description: "Cancelamentos só podem ser feitos com pelo menos 2 horas de antecedência.",
+        variant: "destructive",
+      });
       return;
     }
-    toast({ title: "Agendamento cancelado" });
-    fetchAppointments();
+
+    if (!window.confirm("Tem certeza que deseja cancelar este agendamento?")) return;
+
+    try {
+      // 2. Cancela o agendamento
+      const { error } = await supabase
+        .from("appointments")
+        .update({ status: "cancelled", cancel_reason: "Cancelado pela Escola" })
+        .eq("id", appointmentId);
+
+      if (error) throw error;
+
+      // 3. (Opcional) Retorna o horário para disponível
+      // (Se a sua trigger de banco de dados não faz isso automaticamente)
+      // await supabase.from('timeslots').update({ is_available: true }).eq('id', timeslotId);
+
+      // 4. Notifica o Departamento
+      // Busca todos os funcionários do setor
+      const { data: deptUsers } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("department_id", departmentId);
+
+      if (deptUsers) {
+        const notifications = deptUsers.map(u => ({
+          user_id: u.id,
+          title: "Cancelamento de Escola",
+          message: "Uma escola cancelou um agendamento.",
+        }));
+        await supabase.from("notifications").insert(notifications);
+      }
+
+      toast({ title: "Sucesso", description: "Agendamento cancelado." });
+      // Chame sua função de recarregar a lista aqui (ex: fetchAppointments())
+      
+    } catch (error: any) {
+      toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" });
+    }
   };
 
   const statusBadge = (status: string) => (
@@ -88,7 +129,7 @@ export default function MyAppointmentsPage() {
                   <p className="text-sm text-muted-foreground">{appt.description}</p>
                 </div>
                 {appt.status === "active" && (
-                  <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/5" onClick={() => handleCancel(appt.id)}>
+                  <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/5" onClick={() => handleCancel(appt.id, appt.timeslots.start_time, appt.timeslots.department_id)}>
                     Cancelar
                   </Button>
                 )}

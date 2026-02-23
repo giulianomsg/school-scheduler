@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { CalendarDays, Clock, Users } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 
 export default function DepartmentDashboard() {
   const { user } = useAuth();
@@ -64,6 +66,48 @@ export default function DepartmentDashboard() {
     fetchData();
   }, [user]);
 
+const handleSectorCancel = async (appointmentId: string, schoolUserId: string) => {
+    const reason = window.prompt("Digite o motivo do cancelamento (Obrigatório para notificar a escola):");
+    
+    if (reason === null) return; 
+    if (reason.trim() === "") {
+      toast({
+        title: "Justificativa Ausente",
+        description: "Você deve informar um motivo para cancelar o agendamento.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from("appointments")
+        .update({ 
+          status: "cancelled", 
+          cancel_reason: reason 
+        })
+        .eq("id", appointmentId);
+
+      if (error) throw error;
+
+      await supabase.from("notifications").insert({
+        user_id: schoolUserId,
+        title: "Agendamento Cancelado pelo Setor",
+        message: `O seu agendamento foi cancelado. Motivo: ${reason}`,
+      });
+
+      toast({ title: "Sucesso", description: "Agendamento cancelado e escola notificada." });
+      
+      // Atualiza a tela instantaneamente sem precisar de F5
+      setTodayAppointments((prev) => 
+        prev.map(appt => appt.id === appointmentId ? { ...appt, status: "cancelled" } : appt)
+      );
+      
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    }
+  };
+
   const statusBadge = (status: string) => (
     <Badge variant="outline" className={status === "active" ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}>
       {status === "active" ? "Ativo" : "Cancelado"}
@@ -119,7 +163,18 @@ export default function DepartmentDashboard() {
                       {format(new Date(appt.timeslots.start_time), "HH:mm")} - {format(new Date(appt.timeslots.end_time), "HH:mm")}
                     </p>
                   </div>
-                  {statusBadge(appt.status)}
+                  <div className="flex flex-col items-end gap-2">
+                      {statusBadge(appt.status)}
+                      {appt.status === "active" && (
+                        <Button 
+                          variant="destructive" 
+                          size="sm" 
+                          onClick={() => handleSectorCancel(appt.id, appt.requester_id)}
+                        >
+                          Cancelar
+                        </Button>
+                      )}
+                  </div>
                 </div>
               ))}
             </div>
