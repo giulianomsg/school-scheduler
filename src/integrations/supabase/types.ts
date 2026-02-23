@@ -19,6 +19,8 @@ export type Database = {
           created_at: string
           description: string
           id: string
+          notified_10min: boolean
+          notified_30min: boolean
           requester_id: string
           status: Database["public"]["Enums"]["appointment_status"]
           timeslot_id: string
@@ -27,6 +29,8 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          notified_10min?: boolean
+          notified_30min?: boolean
           requester_id: string
           status?: Database["public"]["Enums"]["appointment_status"]
           timeslot_id: string
@@ -35,6 +39,8 @@ export type Database = {
           created_at?: string
           description?: string
           id?: string
+          notified_10min?: boolean
+          notified_30min?: boolean
           requester_id?: string
           status?: Database["public"]["Enums"]["appointment_status"]
           timeslot_id?: string
@@ -76,6 +82,41 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

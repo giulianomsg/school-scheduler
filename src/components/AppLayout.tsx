@@ -3,7 +3,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, useLocation, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import {
-  Building2,
   CalendarDays,
   LayoutDashboard,
   LogOut,
@@ -13,9 +12,11 @@ import {
   Menu,
   X,
   User,
+  Building2,
 } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import NotificationsPopover from "@/components/NotificationsPopover";
 
 const roleLabels: Record<string, string> = {
   admin: "Administrador",
@@ -48,9 +49,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 bg-sidebar border-r border-sidebar-border">
         <div className="flex flex-col flex-1 overflow-y-auto">
           <div className="flex items-center gap-3 px-6 py-5 border-b border-sidebar-border">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sidebar-primary">
-              <Building2 className="h-5 w-5 text-sidebar-primary-foreground" />
-            </div>
+            <img src="https://www.riopreto.sp.leg.br/Content/css/images/logo-1.png" alt="Logo SME Rio Preto" className="h-9 w-auto object-contain" />
             <div>
               <p className="text-sm font-semibold text-sidebar-foreground">Agenda SME</p>
               <p className="text-xs text-sidebar-foreground/60">Sec. de Educação</p>
@@ -78,13 +77,16 @@ export default function AppLayout({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="border-t border-sidebar-border p-4">
-            <div className="mb-3">
-              <p className="text-sm font-medium text-sidebar-foreground truncate">
-                {profile?.name || profile?.email}
-              </p>
-              <Badge variant="outline" className={`mt-1 text-xs border-0 ${roleColors[profile?.role || "school"]}`}>
-                {roleLabels[profile?.role || "school"]}
-              </Badge>
+            <div className="mb-3 flex items-start justify-between">
+              <div>
+                <p className="text-sm font-medium text-sidebar-foreground truncate">
+                  {profile?.name || profile?.email}
+                </p>
+                <Badge variant="outline" className={`mt-1 text-xs border-0 ${roleColors[profile?.role || "school"]}`}>
+                  {roleLabels[profile?.role || "school"]}
+                </Badge>
+              </div>
+              <NotificationsPopover />
             </div>
             <Button
               variant="ghost"
@@ -103,21 +105,21 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-sidebar border-b border-sidebar-border">
         <div className="flex items-center justify-between px-4 py-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary">
-              <Building2 className="h-4 w-4 text-sidebar-primary-foreground" />
-            </div>
+            <img src="https://www.riopreto.sp.leg.br/Content/css/images/logo-1.png" alt="Logo SME Rio Preto" className="h-8 w-auto object-contain" />
             <span className="text-sm font-semibold text-sidebar-foreground">Agenda SME</span>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-sidebar-foreground"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
+          <div className="flex items-center gap-1">
+            <NotificationsPopover />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-sidebar-foreground"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
-
         {mobileMenuOpen && (
           <div className="border-t border-sidebar-border px-3 py-2 pb-4">
             {navItems.map((item) => {
