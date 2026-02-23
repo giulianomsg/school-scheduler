@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { Building2, Lock, Mail } from "lucide-react";
+import { Lock, Mail } from "lucide-react";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -40,9 +40,7 @@ export default function Login() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary">
-            <Building2 className="h-8 w-8 text-primary-foreground" />
-          </div>
+          <img src="https://www.riopreto.sp.leg.br/Content/css/images/logo-1.png" alt="Logo SME Rio Preto" className="mx-auto mb-2 h-16 w-auto object-contain" />
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Secretaria de Educação
           </h1>
