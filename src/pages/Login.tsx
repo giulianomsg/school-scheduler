@@ -48,7 +48,7 @@ export default function Login() {
             São José do Rio Preto - SP
           </p>          
           <p className="mt-1 text-sm text-muted-foreground">
-            Sistema de Agendamento
+            Sistema de Agendamento de Reuniões
           </p>
         </div>
 
