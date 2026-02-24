@@ -82,18 +82,16 @@ const handleCancel = async (appointmentId: string, startTime: string, department
     }
   };
 
-  const statusBadge = (status: string) => (
-    <Badge
-      variant="outline"
-      className={
-        status === "active"
-          ? "bg-success/10 text-success border-success/20"
-          : "bg-destructive/10 text-destructive border-destructive/20"
-      }
-    >
-      {status === "active" ? "Ativo" : "Cancelado"}
-    </Badge>
-  );
+  const statusBadge = (status: string) => {
+    const map: Record<string, { cls: string; label: string }> = {
+      active: { cls: "bg-success/10 text-success border-success/20", label: "Ativo" },
+      cancelled: { cls: "bg-destructive/10 text-destructive border-destructive/20", label: "Cancelado" },
+      completed: { cls: "bg-emerald-100 text-emerald-700 border-emerald-300", label: "Concluído" },
+      "no-show": { cls: "bg-red-100 text-red-800 border-red-300", label: "Falta" },
+    };
+    const s = map[status] || map.cancelled;
+    return <Badge variant="outline" className={s.cls}>{s.label}</Badge>;
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -127,8 +125,13 @@ const handleCancel = async (appointmentId: string, startTime: string, department
                     {format(new Date(appt.timeslots.end_time), "HH:mm")}
                   </p>
                   <p className="text-sm text-muted-foreground">{appt.description}</p>
+                  {appt.status === "completed" && appt.department_notes && (
+                    <div className="mt-2 rounded border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
+                      <span className="font-semibold">Nota do Setor:</span> {appt.department_notes}
+                    </div>
+                  )}
                 </div>
-                {appt.status === "active" && (
+                {appt.status === "active" && new Date(appt.timeslots.start_time) > new Date() && (
                   <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/5" onClick={() => handleCancel(appt.id, appt.timeslots.start_time, appt.timeslots.department_id)}>
                     Cancelar
                   </Button>

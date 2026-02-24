@@ -8,12 +8,17 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 export default function DepartmentDashboard() {
   const { user } = useAuth();
   const [departmentName, setDepartmentName] = useState("");
   const [stats, setStats] = useState({ totalSlots: 0, availableSlots: 0, activeAppointments: 0 });
   const [todayAppointments, setTodayAppointments] = useState<any[]>([]);
+  const [concludeOpen, setConcludeOpen] = useState(false);
+  const [concludeId, setConcludeId] = useState("");
+  const [concludeNotes, setConcludeNotes] = useState("");
 
   useEffect(() => {
     if (!user) return;
@@ -108,11 +113,41 @@ const handleSectorCancel = async (appointmentId: string, schoolUserId: string) =
     }
   };
 
-  const statusBadge = (status: string) => (
-    <Badge variant="outline" className={status === "active" ? "bg-success/10 text-success border-success/20" : "bg-muted text-muted-foreground"}>
-      {status === "active" ? "Ativo" : "Cancelado"}
-    </Badge>
-  );
+  const handleNoShow = async (appointmentId: string) => {
+    if (!window.confirm("Marcar este agendamento como falta?")) return;
+    try {
+      const { error } = await supabase.from("appointments").update({ status: "no-show" as any }).eq("id", appointmentId);
+      if (error) throw error;
+      toast({ title: "Sucesso", description: "Agendamento marcado como falta." });
+      setTodayAppointments((prev) => prev.map(a => a.id === appointmentId ? { ...a, status: "no-show" } : a));
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleConclude = async () => {
+    try {
+      const { error } = await supabase.from("appointments").update({ status: "completed" as any, department_notes: concludeNotes || null }).eq("id", concludeId);
+      if (error) throw error;
+      toast({ title: "Sucesso", description: "Atendimento concluído." });
+      setTodayAppointments((prev) => prev.map(a => a.id === concludeId ? { ...a, status: "completed", department_notes: concludeNotes } : a));
+      setConcludeOpen(false);
+      setConcludeNotes("");
+    } catch (e: any) {
+      toast({ title: "Erro", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, { cls: string; label: string }> = {
+      active: { cls: "bg-success/10 text-success border-success/20", label: "Ativo" },
+      cancelled: { cls: "bg-muted text-muted-foreground", label: "Cancelado" },
+      completed: { cls: "bg-emerald-100 text-emerald-700 border-emerald-300", label: "Concluído" },
+      "no-show": { cls: "bg-red-100 text-red-800 border-red-300", label: "Falta" },
+    };
+    const s = map[status] || map.cancelled;
+    return <Badge variant="outline" className={s.cls}>{s.label}</Badge>;
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -165,7 +200,7 @@ const handleSectorCancel = async (appointmentId: string, schoolUserId: string) =
                   </div>
                   <div className="flex flex-col items-end gap-2">
                       {statusBadge(appt.status)}
-                      {appt.status === "active" && (
+                      {appt.status === "active" && new Date(appt.timeslots.start_time) > new Date() && (
                         <Button 
                           variant="destructive" 
                           size="sm" 
@@ -174,6 +209,16 @@ const handleSectorCancel = async (appointmentId: string, schoolUserId: string) =
                           Cancelar
                         </Button>
                       )}
+                      {appt.status === "active" && new Date(appt.timeslots.start_time) <= new Date() && (
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" className="text-destructive border-destructive/30" onClick={() => handleNoShow(appt.id)}>
+                            Marcar Falta
+                          </Button>
+                          <Button variant="outline" size="sm" className="text-emerald-700 border-emerald-300" onClick={() => { setConcludeId(appt.id); setConcludeNotes(""); setConcludeOpen(true); }}>
+                            Concluir Atendimento
+                          </Button>
+                        </div>
+                      )}
                   </div>
                 </div>
               ))}
@@ -181,6 +226,24 @@ const handleSectorCancel = async (appointmentId: string, schoolUserId: string) =
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={concludeOpen} onOpenChange={setConcludeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Concluir Atendimento</DialogTitle>
+          </DialogHeader>
+          <Textarea
+            placeholder="Anotações da reunião (opcional)"
+            value={concludeNotes}
+            onChange={(e) => setConcludeNotes(e.target.value)}
+            rows={4}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConcludeOpen(false)}>Cancelar</Button>
+            <Button onClick={handleConclude}>Salvar e Concluir</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
