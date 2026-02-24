@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { mapErrorMessage } from "@/lib/errorMapper";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -99,7 +100,7 @@ export default function DepartmentDashboard() {
       await supabase.from("notifications").insert({ user_id: schoolUserId, title: "Agendamento Cancelado", message: `Motivo: ${reason}` });
       toast({ title: "Sucesso", description: "Agendamento cancelado." });
       fetchData();
-    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
+    } catch (error: any) { toast({ title: "Erro", description: mapErrorMessage(error), variant: "destructive" }); }
   };
 
   const handleMarkNoShow = async (appointmentId: string) => {
@@ -108,7 +109,7 @@ export default function DepartmentDashboard() {
       await supabase.from("appointments").update({ status: "no-show" }).eq("id", appointmentId);
       toast({ title: "Falta registrada" });
       fetchData();
-    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
+    } catch (error: any) { toast({ title: "Erro", description: mapErrorMessage(error), variant: "destructive" }); }
   };
 
   const openCompletionModal = (appointmentId: string) => {
@@ -123,7 +124,7 @@ export default function DepartmentDashboard() {
       toast({ title: "Atendimento Concluído" });
       setIsCompleteModalOpen(false);
       fetchData();
-    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
+    } catch (error: any) { toast({ title: "Erro", description: mapErrorMessage(error), variant: "destructive" }); }
   };
 
   const statusBadge = (status: string) => {

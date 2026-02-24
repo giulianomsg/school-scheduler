@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { mapErrorMessage } from "@/lib/errorMapper";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,7 +82,7 @@ const fetchProfiles = async () => {
     if (error) {
       toast({ 
         title: "Erro ao carregar usuários", 
-        description: error.message, 
+        description: mapErrorMessage(error), 
         variant: "destructive" 
       });
       console.error("Erro no fetchProfiles:", error);
@@ -133,7 +134,7 @@ const fetchProfiles = async () => {
       resetInviteForm();
       fetchProfiles();
     } catch (error: any) {
-      toast({ title: "Falha no convite", description: error.message, variant: "destructive" });
+      toast({ title: "Falha no convite", description: mapErrorMessage(error), variant: "destructive" });
     } finally {
       setInviteLoading(false);
     }
@@ -173,7 +174,7 @@ const fetchProfiles = async () => {
       .eq("id", editProfile.id);
 
     if (error) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao salvar", description: mapErrorMessage(error), variant: "destructive" });
     } else {
       toast({ title: "Usuário atualizado com sucesso" });
       setIsEditOpen(false);

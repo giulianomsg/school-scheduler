@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { mapErrorMessage } from "@/lib/errorMapper";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,11 +81,11 @@ export default function SchoolUnitsPage() {
 
     if (editingUnit) {
       const { error } = await supabase.from("unidades_escolares").update(payload).eq("id", editingUnit.id);
-      if (error) { toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" }); return; }
+      if (error) { toast({ title: "Erro ao atualizar", description: mapErrorMessage(error), variant: "destructive" }); return; }
       toast({ title: "Unidade escolar atualizada" });
     } else {
       const { error } = await supabase.from("unidades_escolares").insert(payload);
-      if (error) { toast({ title: "Erro ao criar", description: error.message, variant: "destructive" }); return; }
+      if (error) { toast({ title: "Erro ao criar", description: mapErrorMessage(error), variant: "destructive" }); return; }
       toast({ title: "Unidade escolar criada" });
     }
 
@@ -96,7 +97,7 @@ export default function SchoolUnitsPage() {
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("unidades_escolares").delete().eq("id", id);
-    if (error) { toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }); return; }
+    if (error) { toast({ title: "Erro ao excluir", description: mapErrorMessage(error), variant: "destructive" }); return; }
     toast({ title: "Unidade escolar excluída" });
     fetchUnits();
   };

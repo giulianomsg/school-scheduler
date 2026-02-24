@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { mapErrorMessage } from "@/lib/errorMapper";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -84,7 +85,7 @@ export default function BookAppointmentPage() {
       description,
     });
     if (error) {
-      toast({ title: "Falha no agendamento", description: error.message, variant: "destructive" });
+      toast({ title: "Falha no agendamento", description: mapErrorMessage(error), variant: "destructive" });
     } else {
       toast({ title: "Agendamento realizado com sucesso!" });
       setDescription("");

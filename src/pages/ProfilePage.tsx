@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { mapErrorMessage } from "@/lib/errorMapper";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,7 @@ export default function ProfilePage() {
       })
       .eq("id", user.id);
     if (error) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao salvar", description: mapErrorMessage(error), variant: "destructive" });
     } else {
       toast({ title: "Perfil atualizado com sucesso" });
     }
