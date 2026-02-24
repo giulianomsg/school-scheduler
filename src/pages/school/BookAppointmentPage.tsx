@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { mapErrorMessage } from "@/lib/errorMapper";
+import { sanitizeText } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -79,10 +80,11 @@ export default function BookAppointmentPage() {
       }
     }
 
+    const sanitizedDescription = sanitizeText(description, 1000);
     const { error } = await supabase.from("appointments").insert({
       timeslot_id: selectedSlot,
       requester_id: user.id,
-      description,
+      description: sanitizedDescription,
     });
     if (error) {
       toast({ title: "Falha no agendamento", description: mapErrorMessage(error), variant: "destructive" });
