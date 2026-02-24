@@ -164,7 +164,7 @@ export default function DepartmentDashboard() {
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 text-sm bg-slate-50 p-3 rounded-md border border-slate-200">
               <div className="flex items-center gap-1.5 font-medium text-slate-700">
                 <Users className="w-4 h-4 text-slate-400" />
-                Diretor(a): <span className="font-normal text-slate-600">{directorName}</span>
+                Requerente: <span className="font-normal text-slate-600">{directorName}</span>
               </div>
               
               {(directorPhone || schoolPhone) && (
@@ -172,7 +172,7 @@ export default function DepartmentDashboard() {
                   {directorPhone && (
                     <a href={`https://wa.me/55${directorPhone.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-green-700 hover:underline">
                       <Phone className="w-4 h-4" />
-                      Dir: {directorPhone}
+                      Cel: {directorPhone}
                     </a>
                   )}
                   {schoolPhone && (
