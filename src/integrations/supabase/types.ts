@@ -23,6 +23,7 @@ export type Database = {
           id: string
           notified_10min: boolean
           notified_30min: boolean
+          rating: number | null
           requester_id: string
           school_notes: string | null
           status: Database["public"]["Enums"]["appointment_status"]
@@ -36,6 +37,7 @@ export type Database = {
           id?: string
           notified_10min?: boolean
           notified_30min?: boolean
+          rating?: number | null
           requester_id: string
           school_notes?: string | null
           status?: Database["public"]["Enums"]["appointment_status"]
@@ -49,6 +51,7 @@ export type Database = {
           id?: string
           notified_10min?: boolean
           notified_30min?: boolean
+          rating?: number | null
           requester_id?: string
           school_notes?: string | null
           status?: Database["public"]["Enums"]["appointment_status"]
