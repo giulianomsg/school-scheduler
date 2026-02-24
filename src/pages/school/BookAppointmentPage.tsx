@@ -55,6 +55,29 @@ export default function BookAppointmentPage() {
       return;
     }
     setBooking(true);
+
+    // Verificação de choque de horários
+    const selectedTimeslot = timeslots.find((ts) => ts.id === selectedSlot);
+    if (selectedTimeslot) {
+      const { data: conflict } = await supabase
+        .from("appointments")
+        .select("id, timeslots!inner(start_time)")
+        .eq("requester_id", user.id)
+        .eq("status", "active")
+        .eq("timeslots.start_time", selectedTimeslot.start_time)
+        .maybeSingle();
+
+      if (conflict) {
+        toast({
+          title: "Choque de Horários",
+          description: "Você já possui um atendimento marcado para este mesmo horário em outro setor.",
+          variant: "destructive",
+        });
+        setBooking(false);
+        return;
+      }
+    }
+
     const { error } = await supabase.from("appointments").insert({
       timeslot_id: selectedSlot,
       requester_id: user.id,
