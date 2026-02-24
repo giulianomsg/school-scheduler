@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { mapErrorMessage } from "@/lib/errorMapper";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,7 +81,7 @@ const fetchProfiles = async () => {
     if (error) {
       toast({ 
         title: "Erro ao carregar usuários", 
-        description: mapErrorMessage(error), 
+        description: error.message, 
         variant: "destructive" 
       });
       console.error("Erro no fetchProfiles:", error);
@@ -134,7 +133,7 @@ const fetchProfiles = async () => {
       resetInviteForm();
       fetchProfiles();
     } catch (error: any) {
-      toast({ title: "Falha no convite", description: mapErrorMessage(error), variant: "destructive" });
+      toast({ title: "Falha no convite", description: error.message, variant: "destructive" });
     } finally {
       setInviteLoading(false);
     }
@@ -174,7 +173,7 @@ const fetchProfiles = async () => {
       .eq("id", editProfile.id);
 
     if (error) {
-      toast({ title: "Erro ao salvar", description: mapErrorMessage(error), variant: "destructive" });
+      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Usuário atualizado com sucesso" });
       setIsEditOpen(false);
@@ -198,7 +197,7 @@ const fetchProfiles = async () => {
       toast({ title: "Senha atualizada com sucesso" });
       setIsPasswordOpen(false);
     } catch (err: any) {
-      toast({ title: "Erro ao alterar senha", description: mapErrorMessage(err), variant: "destructive" });
+      toast({ title: "Erro ao alterar senha", description: err.message, variant: "destructive" });
     } finally {
       setPasswordLoading(false);
     }
@@ -217,7 +216,7 @@ const fetchProfiles = async () => {
         toast({ title: `${label} gerado` });
       }
     } catch (err: any) {
-      toast({ title: "Erro ao gerar link", description: mapErrorMessage(err), variant: "destructive" });
+      toast({ title: "Erro ao gerar link", description: err.message, variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -231,7 +230,7 @@ const fetchProfiles = async () => {
       toast({ title: "Acesso suspenso", description: `${p.name || p.email} foi suspenso.` });
       fetchProfiles();
     } catch (err: any) {
-      toast({ title: "Erro ao suspender", description: mapErrorMessage(err), variant: "destructive" });
+      toast({ title: "Erro ao suspender", description: err.message, variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -244,7 +243,7 @@ const fetchProfiles = async () => {
       toast({ title: "Acesso reativado", description: `${p.name || p.email} foi reativado.` });
       fetchProfiles();
     } catch (err: any) {
-      toast({ title: "Erro ao reativar", description: mapErrorMessage(err), variant: "destructive" });
+      toast({ title: "Erro ao reativar", description: err.message, variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -265,7 +264,7 @@ const fetchProfiles = async () => {
       setIsDeleteOpen(false);
       fetchProfiles();
     } catch (err: any) {
-      toast({ title: "Erro ao excluir", description: mapErrorMessage(err), variant: "destructive" });
+      toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" });
     } finally {
       setDeleteLoading(false);
     }

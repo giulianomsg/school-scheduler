@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { mapErrorMessage } from "@/lib/errorMapper";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,12 +54,12 @@ export default function DepartmentsPage() {
         .from("departments")
         .update({ name })
         .eq("id", editingDept.id);
-      if (error) { toast({ title: "Erro ao atualizar", description: mapErrorMessage(error), variant: "destructive" }); return; }
+      if (error) { toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" }); return; }
     } else {
       const { error } = await supabase
         .from("departments")
         .insert({ name });
-      if (error) { toast({ title: "Erro ao criar", description: mapErrorMessage(error), variant: "destructive" }); return; }
+      if (error) { toast({ title: "Erro ao criar", description: error.message, variant: "destructive" }); return; }
     }
 
     // Update the selected user's department_id
@@ -83,7 +82,7 @@ export default function DepartmentsPage() {
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("departments").delete().eq("id", id);
-    if (error) { toast({ title: "Erro ao excluir", description: mapErrorMessage(error), variant: "destructive" }); return; }
+    if (error) { toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }); return; }
     toast({ title: "Setor excluído" });
     fetchData();
   };
