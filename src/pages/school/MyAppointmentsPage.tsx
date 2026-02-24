@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { mapErrorMessage } from "@/lib/errorMapper";
+import { sanitizeText } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -107,11 +108,12 @@ export default function MyAppointmentsPage() {
     }
 
     try {
+      const sanitizedNotes = sanitizeText(schoolNotes, 1000);
       const { error } = await supabase
         .from("appointments")
         .update({ 
           rating: rating,
-          school_notes: schoolNotes
+          school_notes: sanitizedNotes
         })
         .eq("id", selectedAppointment.id);
 

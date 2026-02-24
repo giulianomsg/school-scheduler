@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { mapErrorMessage } from "@/lib/errorMapper";
+import { sanitizeText } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,8 +96,13 @@ export default function DepartmentDashboard() {
       if (reason !== null) toast({ title: "Justificativa Ausente", variant: "destructive" });
       return;
     }
+    const sanitizedReason = sanitizeText(reason, 500);
+    if (!sanitizedReason) {
+      toast({ title: "Motivo inválido", variant: "destructive" });
+      return;
+    }
     try {
-      await supabase.from("appointments").update({ status: "cancelled", cancel_reason: reason }).eq("id", appointmentId);
+      await supabase.from("appointments").update({ status: "cancelled", cancel_reason: sanitizedReason }).eq("id", appointmentId);
       await supabase.from("notifications").insert({ user_id: schoolUserId, title: "Agendamento Cancelado", message: `Motivo: ${reason}` });
       toast({ title: "Sucesso", description: "Agendamento cancelado." });
       fetchData();
@@ -120,7 +126,8 @@ export default function DepartmentDashboard() {
 
   const submitCompletion = async () => {
     try {
-      await supabase.from("appointments").update({ status: "completed", department_notes: departmentNotes }).eq("id", selectedApptId);
+      const sanitizedNotes = sanitizeText(departmentNotes, 1000);
+      await supabase.from("appointments").update({ status: "completed", department_notes: sanitizedNotes }).eq("id", selectedApptId);
       toast({ title: "Atendimento Concluído" });
       setIsCompleteModalOpen(false);
       fetchData();
