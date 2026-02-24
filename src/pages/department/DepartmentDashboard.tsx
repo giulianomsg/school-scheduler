@@ -42,7 +42,6 @@ export default function DepartmentDashboard() {
     ]);
     setStats({ totalSlots: totalSlots.count ?? 0, availableSlots: availableSlots.count ?? 0 });
 
-    // 💡 ATUALIZAÇÃO DA QUERY: Trazendo a tabela unidades_escolares embutida no profile
     const { data: appts } = await supabase
       .from("appointments")
       .select("*, timeslots!inner(*), profiles!appointments_requester_id_fkey(*, unidades_escolares(*))")
@@ -81,7 +80,6 @@ export default function DepartmentDashboard() {
     const statusText = appt.status.toLowerCase();
     const dateStr = format(new Date(appt.timeslots.start_time), "dd/MM/yyyy HH:mm").toLowerCase();
     
-    // Pesquisa tanto pela escola quanto pelo nome do diretor
     return schoolName.includes(term) || directorName.includes(term) || desc.includes(term) || statusText.includes(term) || dateStr.includes(term);
   });
 
@@ -139,7 +137,6 @@ export default function DepartmentDashboard() {
   };
 
   const renderAppointmentCard = (appt: any, type: "pending" | "today" | "history") => {
-    // Extração segura das variáveis de Escola e Telefones
     const schoolName = appt.profiles?.unidades_escolares?.nome_escola || "Escola não identificada";
     const schoolPhone = appt.profiles?.unidades_escolares?.telefone || "";
     const directorName = appt.profiles?.name || appt.profiles?.email || "Sem nome";
@@ -150,7 +147,7 @@ export default function DepartmentDashboard() {
         <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between gap-4">
           <div className="space-y-4 flex-1">
             
-            {/* Cabeçalho: Escola e Status */}
+            {/* Cabeçalho */}
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="font-semibold text-lg flex items-center gap-2 text-slate-800">
                 <Building className="w-5 h-5 text-indigo-600" />
@@ -160,11 +157,11 @@ export default function DepartmentDashboard() {
               {type === "pending" && <Badge variant="destructive" className="flex gap-1"><AlertCircle className="w-3 h-3" /> Atrasado</Badge>}
             </div>
 
-            {/* Faixa de Contactos (Diretor e Telefones) */}
+            {/* Faixa de Contactos */}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 text-sm bg-slate-50 p-3 rounded-md border border-slate-200">
               <div className="flex items-center gap-1.5 font-medium text-slate-700">
                 <Users className="w-4 h-4 text-slate-400" />
-                Requerente: <span className="font-normal text-slate-600">{directorName}</span>
+                Diretor(a): <span className="font-normal text-slate-600">{directorName}</span>
               </div>
               
               {(directorPhone || schoolPhone) && (
@@ -172,7 +169,7 @@ export default function DepartmentDashboard() {
                   {directorPhone && (
                     <a href={`https://wa.me/55${directorPhone.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-green-700 hover:underline">
                       <Phone className="w-4 h-4" />
-                      Cel: {directorPhone}
+                      Dir: {directorPhone}
                     </a>
                   )}
                   {schoolPhone && (
@@ -194,27 +191,55 @@ export default function DepartmentDashboard() {
               </p>
             </div>
 
-            {/* Área de Auditoria (Visível no Histórico) */}
+            {/* Área de Auditoria (Histórico) */}
             {type === "history" && (
               <div className="mt-4 space-y-2">
                 {appt.cancel_reason && (
-                  <div className="bg-red-50 text-red-800 text-sm p-2 rounded border border-red-100">
+                  <div className="bg-red-50 text-red-800 text-sm p-3 rounded-md border border-red-100">
                     <strong>Motivo Cancelamento:</strong> {appt.cancel_reason}
                   </div>
                 )}
                 {appt.department_notes && (
-                  <div className="bg-slate-50 text-slate-700 text-sm p-2 rounded border border-slate-200">
+                  <div className="bg-slate-50 text-slate-700 text-sm p-3 rounded-md border border-slate-200">
                     <strong>Nossa Anotação:</strong> {appt.department_notes}
                   </div>
                 )}
-                {appt.rating > 0 && (
-                  <div className="bg-amber-50 text-amber-900 text-sm p-2 rounded border border-amber-200 flex items-start gap-2">
-                    <Star className="w-4 h-4 fill-amber-500 text-amber-500 mt-0.5 shrink-0" />
-                    <div>
-                      <strong>Avaliação da Escola ({appt.rating}/5):</strong> {appt.school_notes || "Sem comentários."}
+                
+                {/* 💡 AVALIAÇÃO DA ESCOLA (Estrelas, Cores e Comentários) */}
+                {appt.rating > 0 && (() => {
+                  const isFive = appt.rating === 5;
+                  const isMedium = appt.rating >= 3 && appt.rating < 5;
+                  
+                  // Lógica Dinâmica de Cores
+                  const colorClass = isFive 
+                    ? "bg-green-50 border-green-500 text-green-900" 
+                    : isMedium 
+                      ? "bg-yellow-50 border-yellow-400 text-yellow-900" 
+                      : "bg-red-50 border-red-500 text-red-900";
+                      
+                  const starFillClass = isFive ? "fill-green-500 text-green-500" : isMedium ? "fill-yellow-500 text-yellow-500" : "fill-red-500 text-red-500";
+                  const starEmptyClass = isFive ? "text-green-200" : isMedium ? "text-yellow-200" : "text-red-200";
+
+                  return (
+                    <div className={`mt-2 p-3 rounded-md border-l-4 border-y border-r flex flex-col gap-2 ${colorClass}`}>
+                      <div className="flex items-center gap-2">
+                        <strong className="font-semibold text-sm">Avaliação da Escola ({appt.rating}/5):</strong>
+                        <div className="flex items-center gap-0.5">
+                          {[...Array(5)].map((_, i) => (
+                            <Star 
+                              key={i} 
+                              className={`w-4 h-4 ${i < appt.rating ? starFillClass : starEmptyClass}`} 
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      <div className="text-sm">
+                        <span className="italic">"{appt.school_notes || "Nenhum comentário preenchido."}"</span>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
+
               </div>
             )}
           </div>
@@ -251,7 +276,8 @@ export default function DepartmentDashboard() {
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Horários Abertos</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-indigo-600">{stats.availableSlots}</CardContent></Card>
       </div>
 
-      <Tabs defaultValue="pending" className="w-full">
+      {/* 💡 ATUALIZAÇÃO: defaultValue alterado para "today" */}
+      <Tabs defaultValue="today" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="pending" className="relative">
             Pendências {pendingAppointments.length > 0 && <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white">{pendingAppointments.length}</span>}
