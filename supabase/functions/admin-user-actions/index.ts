@@ -118,6 +118,10 @@ Deno.serve(async (req) => {
 
       case "updatePassword": {
         if (!userId || !password) throw new Error("userId and password are required");
+        if (password.length < 8) throw new Error("A senha deve ter pelo menos 8 caracteres");
+        if (!/[A-Z]/.test(password)) throw new Error("A senha deve conter pelo menos uma letra maiúscula");
+        if (!/[a-z]/.test(password)) throw new Error("A senha deve conter pelo menos uma letra minúscula");
+        if (!/[0-9]/.test(password)) throw new Error("A senha deve conter pelo menos um número");
         const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
           password,
         });
@@ -138,7 +142,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    console.error("[admin-user-actions] Error:", error);
+    return new Response(JSON.stringify({ error: "Operação falhou. Contate o administrador." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
