@@ -2,42 +2,50 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarDays, Star } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Star } from "lucide-react";
 
 export default function MyAppointmentsPage() {
   const { user } = useAuth();
   const [appointments, setAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [ratingOpen, setRatingOpen] = useState(false);
-  const [ratingApptId, setRatingApptId] = useState<string | null>(null);
-  const [ratingValue, setRatingValue] = useState(0);
+
+  // Estados do Modal de Avaliação
+  const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [rating, setRating] = useState<number>(0);
   const [schoolNotes, setSchoolNotes] = useState("");
-  const [savingRating, setSavingRating] = useState(false);
 
   const fetchAppointments = async () => {
     if (!user) return;
     setLoading(true);
-    const { data } = await supabase
+    
+    // A query abaixo garante que TUDO seja trazido, incluindo as notas novas
+    const { data, error } = await supabase
       .from("appointments")
-      .select("*, timeslots!inner(*, departments(*))")
+      .select("*, timeslots!inner(*, departments(name))")
       .eq("requester_id", user.id)
       .order("created_at", { ascending: false });
-    setAppointments(data || []);
+
+    if (error) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } else {
+      setAppointments(data || []);
+    }
     setLoading(false);
   };
 
-  useEffect(() => { fetchAppointments(); }, [user]);
+  useEffect(() => {
+    fetchAppointments();
+  }, [user]);
 
-const handleCancel = async (appointmentId: string, startTime: string, departmentId: string) => {
-    // 1. Verificação de Cooldown (2 horas)
+  const handleCancel = async (appointmentId: string, startTime: string, departmentId: string) => {
     const appointmentTime = new Date(startTime).getTime();
     const now = new Date().getTime();
     const hoursDifference = (appointmentTime - now) / (1000 * 60 * 60);
@@ -54,7 +62,6 @@ const handleCancel = async (appointmentId: string, startTime: string, department
     if (!window.confirm("Tem certeza que deseja cancelar este agendamento?")) return;
 
     try {
-      // 2. Cancela o agendamento
       const { error } = await supabase
         .from("appointments")
         .update({ status: "cancelled", cancel_reason: "Cancelado pela Escola" })
@@ -62,12 +69,7 @@ const handleCancel = async (appointmentId: string, startTime: string, department
 
       if (error) throw error;
 
-      // 3. (Opcional) Retorna o horário para disponível
-      // (Se a sua trigger de banco de dados não faz isso automaticamente)
-      // await supabase.from('timeslots').update({ is_available: true }).eq('id', timeslotId);
-
-      // 4. Notifica o Departamento
-      // Busca todos os funcionários do setor
+      // Dispara a notificação para o Setor
       const { data: deptUsers } = await supabase
         .from("profiles")
         .select("id")
@@ -83,151 +85,170 @@ const handleCancel = async (appointmentId: string, startTime: string, department
       }
 
       toast({ title: "Sucesso", description: "Agendamento cancelado." });
-      // Chame sua função de recarregar a lista aqui (ex: fetchAppointments())
+      fetchAppointments(); // Recarrega a lista
       
     } catch (error: any) {
       toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" });
     }
   };
 
-  const handleSubmitRating = async () => {
-    if (!ratingApptId || ratingValue === 0) {
-      toast({ title: "Selecione uma nota", description: "Clique nas estrelas para avaliar.", variant: "destructive" });
-      return;
-    }
-    setSavingRating(true);
-    const { error } = await supabase
-      .from("appointments")
-      .update({ rating: ratingValue, school_notes: schoolNotes || null })
-      .eq("id", ratingApptId);
-    setSavingRating(false);
-    if (error) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
-      return;
-    }
-    toast({ title: "Avaliação salva!", description: "Obrigado pelo seu feedback." });
-    setRatingOpen(false);
-    setRatingApptId(null);
-    setRatingValue(0);
-    setSchoolNotes("");
-    fetchAppointments();
+  const openRatingModal = (appt: any) => {
+    setSelectedAppointment(appt);
+    setRating(appt.rating || 0);
+    setSchoolNotes(appt.school_notes || "");
+    setIsRatingModalOpen(true);
   };
 
-  const openRatingDialog = (apptId: string) => {
-    setRatingApptId(apptId);
-    setRatingValue(0);
-    setSchoolNotes("");
-    setRatingOpen(true);
-  };
+  const submitRating = async () => {
+    if (rating === 0) {
+      toast({ title: "Atenção", description: "Selecione pelo menos 1 estrela para avaliar.", variant: "destructive" });
+      return;
+    }
 
-  const renderStars = (count: number, interactive: boolean, onSelect?: (n: number) => void) => (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <Star
-          key={n}
-          className={`h-6 w-6 ${n <= count ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground/40"} ${interactive ? "cursor-pointer hover:scale-110 transition-transform" : ""}`}
-          onClick={interactive && onSelect ? () => onSelect(n) : undefined}
-        />
-      ))}
-    </div>
-  );
+    try {
+      const { error } = await supabase
+        .from("appointments")
+        .update({ 
+          rating: rating,
+          school_notes: schoolNotes
+        })
+        .eq("id", selectedAppointment.id);
+
+      if (error) throw error;
+
+      toast({ title: "Sucesso", description: "Avaliação salva com sucesso!" });
+      setIsRatingModalOpen(false);
+      fetchAppointments(); // Atualiza a tela
+      
+    } catch (error: any) {
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    }
+  };
 
   const statusBadge = (status: string) => {
-    const map: Record<string, { cls: string; label: string }> = {
-      active: { cls: "bg-success/10 text-success border-success/20", label: "Ativo" },
-      cancelled: { cls: "bg-destructive/10 text-destructive border-destructive/20", label: "Cancelado" },
-      completed: { cls: "bg-emerald-100 text-emerald-700 border-emerald-300", label: "Concluído" },
-      "no-show": { cls: "bg-red-100 text-red-800 border-red-300", label: "Falta" },
-    };
-    const s = map[status] || map.cancelled;
-    return <Badge variant="outline" className={s.cls}>{s.label}</Badge>;
+    switch (status) {
+      case "active": return <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200">Ativo</Badge>;
+      case "cancelled": return <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-200">Cancelado</Badge>;
+      case "completed": return <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200">Concluído</Badge>;
+      case "no-show": return <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200">Falta</Badge>;
+      default: return <Badge variant="outline">{status}</Badge>;
+    }
   };
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Meus Agendamentos</h1>
-        <p className="text-muted-foreground">Visualize e gerencie seus agendamentos</p>
-      </div>
-
-      {loading ? (
-        <div className="text-center py-8 text-muted-foreground">Carregando...</div>
-      ) : appointments.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <CalendarDays className="mx-auto h-12 w-12 text-muted-foreground/40 mb-4" />
-            <p className="text-muted-foreground">Nenhum agendamento ainda. Agende um para começar.</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-3">
-          {appointments.map((appt) => (
+      <h1 className="text-2xl font-bold text-foreground">Meus Agendamentos</h1>
+      
+      <div className="grid gap-4">
+        {loading ? (
+          <p className="text-muted-foreground text-center py-8">Carregando...</p>
+        ) : appointments.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              Você ainda não possui agendamentos.
+            </CardContent>
+          </Card>
+        ) : (
+          appointments.map((appt) => (
             <Card key={appt.id}>
-              <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-4">
-                <div className="space-y-1">
+              <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between gap-4">
+                <div className="space-y-2 flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium">{appt.timeslots?.departments?.name || "Setor"}</p>
+                    <h3 className="font-semibold text-lg">{appt.timeslots?.departments?.name}</h3>
                     {statusBadge(appt.status)}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {format(new Date(appt.timeslots.start_time), "dd/MM/yyyy", { locale: ptBR })} ·{" "}
-                    {format(new Date(appt.timeslots.start_time), "HH:mm")} -{" "}
-                    {format(new Date(appt.timeslots.end_time), "HH:mm")}
-                  </p>
                   <p className="text-sm text-muted-foreground">{appt.description}</p>
+                  <p className="text-sm font-medium">
+                    {format(new Date(appt.timeslots.start_time), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                  
+                  {/* Exibição da Nota do Departamento se o status for Concluído */}
                   {appt.status === "completed" && appt.department_notes && (
-                    <div className="mt-2 rounded border border-emerald-200 bg-emerald-50 p-2 text-xs text-emerald-800">
-                      <span className="font-semibold">Nota do Setor:</span> {appt.department_notes}
+                    <div className="mt-3 bg-slate-50 p-3 rounded-md border border-slate-100 text-sm">
+                      <p className="font-semibold text-xs text-slate-500 mb-1">Feedback do Setor:</p>
+                      <p className="text-slate-700">{appt.department_notes}</p>
                     </div>
                   )}
-                  {appt.status === "completed" && appt.rating != null && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className="text-sm font-medium text-muted-foreground">Sua Avaliação:</span>
-                      {renderStars(appt.rating, false)}
-                      <span className="text-sm text-muted-foreground">{appt.rating}/5</span>
+
+                  {/* Exibição do Motivo do Cancelamento */}
+                  {appt.status === "cancelled" && appt.cancel_reason && (
+                    <div className="mt-3 bg-red-50 p-3 rounded-md text-sm text-red-800 border border-red-100">
+                      <p className="font-semibold text-xs mb-1">Motivo do Cancelamento:</p>
+                      <p>{appt.cancel_reason}</p>
                     </div>
-                  )}
-                  {appt.status === "completed" && appt.rating != null && appt.school_notes && (
-                    <p className="text-xs text-muted-foreground mt-1">Suas anotações: {appt.school_notes}</p>
                   )}
                 </div>
-                <div className="flex flex-col gap-2 items-end">
-                  {appt.status === "completed" && appt.rating == null && (
-                    <Button variant="outline" size="sm" className="text-primary border-primary/30 hover:bg-primary/5" onClick={() => openRatingDialog(appt.id)}>
-                      Avaliar Atendimento
-                    </Button>
-                  )}
+
+                <div className="flex flex-col items-end gap-2 justify-start min-w-[160px]">
+                  {/* Trava Visual: Oculta Cancelar se o horário já passou */}
                   {appt.status === "active" && new Date(appt.timeslots.start_time) > new Date() && (
-                    <Button variant="outline" size="sm" className="text-destructive border-destructive/30 hover:bg-destructive/5" onClick={() => handleCancel(appt.id, appt.timeslots.start_time, appt.timeslots.department_id)}>
+                    <Button 
+                      variant="destructive" 
+                      onClick={() => handleCancel(appt.id, appt.timeslots.start_time, appt.timeslots.department_id)}
+                    >
                       Cancelar
                     </Button>
+                  )}
+
+                  {/* Botão de Avaliação (Só aparece se estiver concluído) */}
+                  {appt.status === "completed" && (
+                    <div className="flex flex-col items-end mt-2 sm:mt-0">
+                      {appt.rating ? (
+                        <div className="text-right">
+                          <div className="flex items-center gap-1 text-amber-500 justify-end mb-1">
+                            {[...Array(5)].map((_, i) => (
+                              <Star key={i} className={`w-4 h-4 ${i < appt.rating ? "fill-current" : "text-slate-200"}`} />
+                            ))}
+                          </div>
+                          {appt.school_notes && <span className="text-xs text-muted-foreground">Avaliação enviada</span>}
+                        </div>
+                      ) : (
+                        <Button variant="default" size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-white w-full" onClick={() => openRatingModal(appt)}>
+                          <Star className="w-4 h-4 mr-2" />
+                          Avaliar Atendimento
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
 
-      <Dialog open={ratingOpen} onOpenChange={setRatingOpen}>
+      {/* Modal de Avaliação com 5 Estrelas */}
+      <Dialog open={isRatingModalOpen} onOpenChange={setIsRatingModalOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Avaliar Atendimento</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label>Nota</Label>
-              {renderStars(ratingValue, true, setRatingValue)}
+          <div className="space-y-6 py-4">
+            <div className="flex flex-col items-center gap-3">
+              <p className="text-sm text-muted-foreground">Como você avalia a resolução desta pauta?</p>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star 
+                    key={star}
+                    className={`w-10 h-10 cursor-pointer transition-colors ${star <= rating ? "text-amber-500 fill-current" : "text-slate-200 hover:text-amber-200"}`}
+                    onClick={() => setRating(star)}
+                  />
+                ))}
+              </div>
             </div>
             <div className="space-y-2">
-              <Label>Suas anotações sobre o atendimento (opcional)</Label>
-              <Textarea value={schoolNotes} onChange={(e) => setSchoolNotes(e.target.value)} placeholder="Escreva aqui..." />
+              <label className="text-sm font-medium">Anotações da Escola (Opcional)</label>
+              <Textarea 
+                placeholder="Suas anotações pós-reunião ou feedback adicional..."
+                value={schoolNotes}
+                onChange={(e) => setSchoolNotes(e.target.value)}
+                rows={4}
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button onClick={handleSubmitRating} disabled={savingRating}>
-              {savingRating ? "Salvando..." : "Salvar Avaliação"}
-            </Button>
+            <Button variant="outline" onClick={() => setIsRatingModalOpen(false)}>Cancelar</Button>
+            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" onClick={submitRating}>Salvar Avaliação</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
