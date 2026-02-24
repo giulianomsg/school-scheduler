@@ -42,8 +42,11 @@ export default function Login() {
         <div className="mb-8 text-center">
           <img src="https://www.riopreto.sp.leg.br/Content/css/images/logo-1.png" alt="Logo SME Rio Preto" className="mx-auto mb-2 h-16 w-auto object-contain" />
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Secretaria de Educação
+            Secretaria Municipal de Educação
           </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            São José do Rio Preto - SP
+          </p>          
           <p className="mt-1 text-sm text-muted-foreground">
             Sistema de Agendamento
           </p>
