@@ -3,71 +3,101 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Building2, CalendarDays, School, Users, Trash2 } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
-import { toast } from "@/hooks/use-toast";
+import { Building2, CalendarDays, School, Star } from "lucide-react";
+
+interface DeptStats {
+  name: string;
+  completed: number;
+  noShows: number;
+  avgRating: number | null;
+}
 
 export default function AdminDashboard() {
-  const [stats, setStats] = useState({ users: 0, departments: 0, appointments: 0, schools: 0 });
-  const [appointments, setAppointments] = useState<any[]>([]);
+  const [stats, setStats] = useState({ schools: 0, departments: 0, totalAppointments: 0, avgRating: null as number | null });
+  const [deptStats, setDeptStats] = useState<DeptStats[]>([]);
 
-  const fetchData = async () => {
-    const [users, departments, appointmentsCount, schools] = await Promise.all([
-      supabase.from("profiles").select("id", { count: "exact", head: true }),
-      supabase.from("departments").select("id", { count: "exact", head: true }),
-      supabase.from("appointments").select("id", { count: "exact", head: true }).eq("status", "active"),
-      supabase.from("unidades_escolares").select("id", { count: "exact", head: true }),
-    ]);
-    setStats({
-      users: users.count ?? 0,
-      departments: departments.count ?? 0,
-      appointments: appointmentsCount.count ?? 0,
-      schools: schools.count ?? 0,
-    });
+  useEffect(() => {
+    const fetchData = async () => {
+      // Global counts
+      const [schoolsRes, deptsRes, apptsRes] = await Promise.all([
+        supabase.from("unidades_escolares").select("id", { count: "exact", head: true }),
+        supabase.from("departments").select("id", { count: "exact", head: true }),
+        supabase.from("appointments").select("id", { count: "exact", head: true }),
+      ]);
 
-    const { data } = await supabase
-      .from("appointments")
-      .select("*, timeslots!inner(*, departments(*)), profiles!appointments_requester_id_fkey(*)")
-      .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .limit(50);
-    setAppointments(data || []);
-  };
+      // All appointments with department info for analytics
+      const { data: allAppts } = await supabase
+        .from("appointments")
+        .select("status, rating, timeslots!inner(department_id, departments(name))");
 
-  useEffect(() => { fetchData(); }, []);
+      const appointments = allAppts || [];
 
-  const handleCancel = async (id: string) => {
-    const { error } = await supabase.from("appointments").update({ status: "cancelled" as const }).eq("id", id);
-    if (error) { toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" }); return; }
-    toast({ title: "Agendamento cancelado" });
+      // Global avg rating
+      const rated = appointments.filter(a => a.status === "completed" && a.rating != null);
+      const globalAvg = rated.length > 0
+        ? rated.reduce((sum, a) => sum + (a.rating ?? 0), 0) / rated.length
+        : null;
+
+      setStats({
+        schools: schoolsRes.count ?? 0,
+        departments: deptsRes.count ?? 0,
+        totalAppointments: apptsRes.count ?? 0,
+        avgRating: globalAvg,
+      });
+
+      // Per-department stats
+      const deptMap = new Map<string, { name: string; completed: number; noShows: number; ratings: number[] }>();
+      for (const appt of appointments) {
+        const deptName = (appt.timeslots as any)?.departments?.name;
+        const deptId = (appt.timeslots as any)?.department_id;
+        if (!deptId) continue;
+        if (!deptMap.has(deptId)) deptMap.set(deptId, { name: deptName || "—", completed: 0, noShows: 0, ratings: [] });
+        const entry = deptMap.get(deptId)!;
+        if (appt.status === "completed") {
+          entry.completed++;
+          if (appt.rating != null) entry.ratings.push(appt.rating);
+        }
+        if (appt.status === "no-show") entry.noShows++;
+      }
+
+      const result: DeptStats[] = Array.from(deptMap.values()).map(d => ({
+        name: d.name,
+        completed: d.completed,
+        noShows: d.noShows,
+        avgRating: d.ratings.length > 0 ? d.ratings.reduce((a, b) => a + b, 0) / d.ratings.length : null,
+      }));
+      result.sort((a, b) => (b.avgRating ?? 0) - (a.avgRating ?? 0));
+      setDeptStats(result);
+    };
     fetchData();
-  };
+  }, []);
 
-  const cards = [
-    { title: "Total de Usuários", value: stats.users, icon: Users, color: "text-primary" },
-    { title: "Setores", value: stats.departments, icon: Building2, color: "text-secondary" },
-    { title: "Agendamentos Ativos", value: stats.appointments, icon: CalendarDays, color: "text-success" },
-    { title: "Unidades Escolares", value: stats.schools, icon: School, color: "text-warning" },
+  const kpis = [
+    { title: "Unidades Escolares", value: stats.schools, icon: School, color: "text-primary" },
+    { title: "Setores Ativos", value: stats.departments, icon: Building2, color: "text-secondary" },
+    { title: "Total de Agendamentos", value: stats.totalAppointments, icon: CalendarDays, color: "text-success" },
+    { title: "Nota Média Global", value: stats.avgRating != null ? stats.avgRating.toFixed(1) : "—", suffix: "/5.0", icon: Star, color: "text-yellow-500" },
   ];
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Painel Administrativo</h1>
-        <p className="text-muted-foreground">Visão geral do sistema de agendamento</p>
+        <p className="text-muted-foreground">Inteligência de negócios do sistema de agendamento</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((card) => (
-          <Card key={card.title}>
+        {kpis.map((kpi) => (
+          <Card key={kpi.title}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{card.title}</CardTitle>
-              <card.icon className={`h-5 w-5 ${card.color}`} />
+              <CardTitle className="text-sm font-medium text-muted-foreground">{kpi.title}</CardTitle>
+              <kpi.icon className={`h-5 w-5 ${kpi.color}`} />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{card.value}</div>
+              <div className="text-3xl font-bold">
+                {kpi.value}
+                {"suffix" in kpi && kpi.suffix && <span className="text-base font-normal text-muted-foreground">{kpi.suffix}</span>}
+              </div>
             </CardContent>
           </Card>
         ))}
@@ -75,40 +105,41 @@ export default function AdminDashboard() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Agendamentos Ativos</CardTitle>
+          <CardTitle>Desempenho por Setor</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {appointments.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">Nenhum agendamento ativo.</div>
+          {deptStats.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">Nenhum dado de desempenho disponível.</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Data/Hora</TableHead>
                     <TableHead>Setor</TableHead>
-                    <TableHead>Solicitante</TableHead>
-                    <TableHead>Descrição</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="w-16">Ações</TableHead>
+                    <TableHead className="text-center">Atendimentos</TableHead>
+                    <TableHead className="text-center">Faltas</TableHead>
+                    <TableHead className="text-center">Nota Média</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {appointments.map((appt) => (
-                    <TableRow key={appt.id}>
-                      <TableCell className="whitespace-nowrap">
-                        {format(new Date(appt.timeslots.start_time), "dd/MM/yyyy HH:mm", { locale: ptBR })}
+                  {deptStats.map((dept) => (
+                    <TableRow key={dept.name}>
+                      <TableCell className="font-medium">{dept.name}</TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">{dept.completed}</Badge>
                       </TableCell>
-                      <TableCell>{appt.timeslots?.departments?.name || "—"}</TableCell>
-                      <TableCell>{appt.profiles?.name || appt.profiles?.email || "—"}</TableCell>
-                      <TableCell className="max-w-[200px] truncate">{appt.description}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="bg-success/10 text-success border-success/20">Ativo</Badge>
+                      <TableCell className="text-center">
+                        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">{dept.noShows}</Badge>
                       </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => handleCancel(appt.id)}>
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
+                      <TableCell className="text-center">
+                        {dept.avgRating != null ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                            <span className="font-medium">{dept.avgRating.toFixed(1)}</span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
