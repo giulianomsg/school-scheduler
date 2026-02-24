@@ -8,7 +8,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 
 export default function DepartmentDashboard() {
@@ -231,6 +231,7 @@ const handleSectorCancel = async (appointmentId: string, schoolUserId: string) =
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Concluir Atendimento</DialogTitle>
+            <DialogDescription className="hidden">Preencha as anotações para concluir o atendimento.</DialogDescription>
           </DialogHeader>
           <Textarea
             placeholder="Anotações da reunião (opcional)"
