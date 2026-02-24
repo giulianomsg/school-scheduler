@@ -16,32 +16,41 @@ export type Database = {
     Tables: {
       appointments: {
         Row: {
+          cancel_reason: string | null
           created_at: string
+          department_notes: string | null
           description: string
           id: string
           notified_10min: boolean
           notified_30min: boolean
           requester_id: string
+          school_notes: string | null
           status: Database["public"]["Enums"]["appointment_status"]
           timeslot_id: string
         }
         Insert: {
+          cancel_reason?: string | null
           created_at?: string
+          department_notes?: string | null
           description?: string
           id?: string
           notified_10min?: boolean
           notified_30min?: boolean
           requester_id: string
+          school_notes?: string | null
           status?: Database["public"]["Enums"]["appointment_status"]
           timeslot_id: string
         }
         Update: {
+          cancel_reason?: string | null
           created_at?: string
+          department_notes?: string | null
           description?: string
           id?: string
           notified_10min?: boolean
           notified_30min?: boolean
           requester_id?: string
+          school_notes?: string | null
           status?: Database["public"]["Enums"]["appointment_status"]
           timeslot_id?: string
         }
@@ -282,7 +291,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "department" | "school"
-      appointment_status: "active" | "cancelled"
+      appointment_status: "active" | "cancelled" | "completed" | "no-show"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -411,7 +420,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "department", "school"],
-      appointment_status: ["active", "cancelled"],
+      appointment_status: ["active", "cancelled", "completed", "no-show"],
     },
   },
 } as const
