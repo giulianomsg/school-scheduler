@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { mapErrorMessage } from "@/lib/errorMapper";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -38,7 +39,7 @@ export default function TimeslotsPage() {
         .order("start_time", { ascending: true });
 
       if (error) {
-        toast({ title: "Erro ao buscar horários", description: error.message, variant: "destructive" });
+        toast({ title: "Erro ao buscar horários", description: mapErrorMessage(error), variant: "destructive" });
       } else {
         setTimeslots(slots || []);
       }
@@ -82,7 +83,7 @@ export default function TimeslotsPage() {
       setEndTime("");
       fetchTimeslots();
     } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Erro", description: mapErrorMessage(error), variant: "destructive" });
     }
   };
 
@@ -119,7 +120,7 @@ export default function TimeslotsPage() {
       toast({ title: "Limpeza concluída", description: `${expiredUnusedIds.length} horários foram apagados com sucesso.` });
       fetchTimeslots();
     } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Erro", description: mapErrorMessage(error), variant: "destructive" });
     }
   };
 
