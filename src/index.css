@@ -104,7 +104,7 @@
 a[href*="lovable.dev"],
 iframe[src*="lovable.dev"],
 div[style*="Edit with Lovable"],
-.lovable-badge {
+.lovable-badge .lovable-badge-close {{
     display: none !important;
     opacity: 0 !important;
     visibility: hidden !important;
