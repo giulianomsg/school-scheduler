@@ -44,7 +44,7 @@ export default function Login() {
           <h1 className="text-2xl font-bold tracking-tight text-foreground">
             Secretaria Municipal de Educação
           </h1>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-base text-muted-foreground">
             São José do Rio Preto - SP
           </p>          
           <p className="mt-1 text-sm text-muted-foreground">
