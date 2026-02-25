@@ -102,24 +102,40 @@ export default function DepartmentDashboard() {
     } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
   };
 
-  const handleMarkNoShow = async (appointmentId: string) => {
+const handleMarkNoShow = async (appointmentId: string) => {
     if (!window.confirm("Confirmar que a escola faltou ao atendimento?")) return;
     try {
       await supabase.from("appointments").update({ status: "no-show" }).eq("id", appointmentId);
+      
+      // DISPARA NOTIFICAÇÃO (Sem som, porque o título não tem as palavras gatilho)
+      const appt = allAppointments.find(a => a.id === appointmentId);
+      if (appt) {
+         await supabase.from("notifications").insert({ 
+            user_id: appt.requester_id, 
+            title: "Registro de Falta", 
+            message: "O setor registrou o seu não comparecimento ao atendimento." 
+         });
+      }
+
       toast({ title: "Falta registrada" });
       fetchData();
     } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
   };
 
-  const openCompletionModal = (appointmentId: string) => {
-    setSelectedApptId(appointmentId);
-    setDepartmentNotes("");
-    setIsCompleteModalOpen(true);
-  };
-
   const submitCompletion = async () => {
     try {
       await supabase.from("appointments").update({ status: "completed", department_notes: departmentNotes }).eq("id", selectedApptId);
+      
+      // DISPARA NOTIFICAÇÃO (Sem som)
+      const appt = allAppointments.find(a => a.id === selectedApptId);
+      if (appt) {
+        await supabase.from("notifications").insert({ 
+          user_id: appt.requester_id, 
+          title: "Atendimento Concluído", 
+          message: "O setor finalizou o atendimento. Por favor, vá ao seu painel e deixe a sua avaliação!" 
+        });
+      }
+
       toast({ title: "Atendimento Concluído" });
       setIsCompleteModalOpen(false);
       fetchData();

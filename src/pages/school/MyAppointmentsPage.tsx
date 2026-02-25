@@ -67,6 +67,20 @@ export default function MyAppointmentsPage() {
         .update({ status: "cancelled", cancel_reason: "Cancelado pela Escola" })
         .eq("id", appointmentId);
 
+        // Avisa todo mundo do setor que a escola cancelou! (Terá som pois o título é Cancelado)
+        const appt = appointments.find(a => a.id === id);
+        if (appt && appt.timeslots?.department_id) {
+          const { data: deptUsers } = await supabase.from("profiles").select("id").eq("department_id", appt.timeslots.department_id);
+          if (deptUsers && deptUsers.length > 0) {
+              const notes = deptUsers.map(u => ({
+                  user_id: u.id,
+                  title: "Agendamento Cancelado",
+                  message: "Uma escola cancelou o atendimento que estava agendado."
+              }));
+              await supabase.from("notifications").insert(notes);
+          }
+        }        
+
       if (error) throw error;
 
       // Dispara a notificação para o Setor
@@ -113,6 +127,20 @@ export default function MyAppointmentsPage() {
           school_notes: schoolNotes
         })
         .eq("id", selectedAppointment.id);
+
+        // Avisa o setor que ganharam uma nota! (Sem som, apenas bolinha vermelha)
+        const appt = appointments.find(a => a.id === selectedApptId);
+        if (appt && appt.timeslots?.department_id) {
+          const { data: deptUsers } = await supabase.from("profiles").select("id").eq("department_id", appt.timeslots.department_id);
+          if (deptUsers && deptUsers.length > 0) {
+              const notes = deptUsers.map(u => ({
+                  user_id: u.id,
+                  title: "Nova Avaliação",
+                  message: `A escola avaliou o atendimento com a nota de ${rating} estrelas.`
+              }));
+              await supabase.from("notifications").insert(notes);
+          }
+        }        
 
       if (error) throw error;
 
