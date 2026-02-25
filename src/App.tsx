@@ -17,6 +17,7 @@ import TimeslotsPage from "@/pages/department/TimeslotsPage";
 import CalendarPage from "@/pages/department/CalendarPage";
 import BookAppointmentPage from "@/pages/school/BookAppointmentPage";
 import MyAppointmentsPage from "@/pages/school/MyAppointmentsPage";
+import SchoolCalendarPage from "@/pages/school/SchoolCalendarPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
             {/* School routes */}
             <Route path="/book" element={<ProtectedRoute allowedRoles={["school"]}><AppLayout><BookAppointmentPage /></AppLayout></ProtectedRoute>} />
             <Route path="/my-appointments" element={<ProtectedRoute allowedRoles={["school"]}><AppLayout><MyAppointmentsPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/school/calendar" element={<ProtectedRoute allowedRoles={["school"]}><AppLayout><SchoolCalendarPage /></AppLayout></ProtectedRoute>} />
 
             <Route path="*" element={<NotFound />} />
           </Routes>
