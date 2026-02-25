@@ -14,43 +14,54 @@ export default function NotificationsPopover() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
 
-  // Refs de segurança para controlar o alarme sem perder o contexto do React
   const playCountRef = useRef(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // ==========================================
-  // MOTOR DE ÁUDIO (Sintetizador no Navegador)
-  // ==========================================
   const playSound = () => {
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContext) return;
-      
       const audioCtx = new AudioContext();
-      
       const playBeep = (time: number) => {
         const oscillator = audioCtx.createOscillator();
         const gainNode = audioCtx.createGain();
-        
         oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, time); // Nota A5 (Aguda e clara)
-        
-        gainNode.gain.setValueAtTime(0.1, time); // Volume suave
+        oscillator.frequency.setValueAtTime(880, time);
+        gainNode.gain.setValueAtTime(0.1, time);
         gainNode.gain.exponentialRampToValueAtTime(0.00001, time + 0.3);
-        
         oscillator.connect(gainNode);
         gainNode.connect(audioCtx.destination);
-        
         oscillator.start(time);
         oscillator.stop(time + 0.3);
       };
-
-      // Toca dois bipes rápidos (Padrão de alerta digital)
       playBeep(audioCtx.currentTime);
       playBeep(audioCtx.currentTime + 0.15);
-      
     } catch (e) {
-      console.log("Áudio bloqueado. O usuário precisa interagir com a página antes.", e);
+      console.log("Áudio bloqueado. Requer interação com a página.", e);
+    }
+  };
+
+  const startSoundAlarm = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    
+    playCountRef.current = 0;
+    playSound();
+    playCountRef.current += 1;
+
+    intervalRef.current = setInterval(() => {
+      if (playCountRef.current < 10) {
+        playSound();
+        playCountRef.current += 1;
+      } else {
+        stopSoundAlarm();
+      }
+    }, 60000); 
+  };
+
+  const stopSoundAlarm = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
     }
   };
 
@@ -69,12 +80,8 @@ export default function NotificationsPopover() {
     }
   };
 
-  // ==========================================
-  // TEMPO REAL: ESCUTAR O SUPABASE
-  // ==========================================
   useEffect(() => {
     if (!user) return;
-    
     fetchNotifications();
 
     const channel = supabase
@@ -90,13 +97,18 @@ export default function NotificationsPopover() {
         (payload) => {
           const newNotif = payload.new;
           setNotifications((prev) => [newNotif, ...prev]);
+          setUnreadCount((prev) => prev + 1);
           
-          setUnreadCount((prev) => {
-            const newCount = prev + 1;
-            // Se chegou uma notificação nova, renovamos os 10 minutos de alerta
-            playCountRef.current = 0; 
-            return newCount;
-          });
+          const title = (newNotif.title || "").toLowerCase();
+          const isUrgent = title.includes("cancelado") || 
+                           title.includes("cancelamento") || 
+                           title.includes("iminente") || 
+                           title.includes("lembrete") || 
+                           title.includes("atenção");
+
+          if (isUrgent) {
+            startSoundAlarm();
+          }
         }
       )
       .subscribe();
@@ -107,67 +119,19 @@ export default function NotificationsPopover() {
     };
   }, [user]);
 
-  // ==========================================
-  // LÓGICA DO ALARME E REPETIÇÃO
-  // ==========================================
-  useEffect(() => {
-    if (unreadCount > 0) {
-      startSoundAlarm();
-    } else {
-      stopSoundAlarm(); // Desliga instantaneamente se zerar as pendentes
-    }
-  }, [unreadCount]);
-
-  const startSoundAlarm = () => {
-    if (intervalRef.current) return; // Se já está a tocar, não duplica o loop
-
-    // Dispara a primeira notificação imediatamente
-    if (playCountRef.current < 10) {
-      playSound();
-      playCountRef.current += 1;
-    }
-
-    // Cria o loop de 1 minuto
-    intervalRef.current = setInterval(() => {
-      if (playCountRef.current < 10) {
-        playSound();
-        playCountRef.current += 1;
-      } else {
-        stopSoundAlarm(); // Atingiu o teto de 10 minutos. Silêncio.
-      }
-    }, 60000); 
-  };
-
-  const stopSoundAlarm = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  };
-
-  // ==========================================
-  // AÇÕES DO USUÁRIO
-  // ==========================================
   const markAsRead = async (id: string) => {
-    // Atualização Visual Imediata (Optimistic UI) para cortar o som na hora
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
-    );
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
     setUnreadCount((prev) => Math.max(0, prev - 1));
-    
-    // Atualização de Fundo no Banco
+    stopSoundAlarm();
     await supabase.from("notifications").update({ is_read: true }).eq("id", id);
   };
 
   const markAllAsRead = async () => {
     const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
     if (unreadIds.length === 0) return;
-
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     setUnreadCount(0);
     stopSoundAlarm();
-    playCountRef.current = 0;
-
     await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds);
   };
 
@@ -176,7 +140,6 @@ export default function NotificationsPopover() {
     setNotifications([]);
     setUnreadCount(0);
     stopSoundAlarm();
-    
     await supabase.from("notifications").delete().eq("user_id", user?.id);
   };
 
