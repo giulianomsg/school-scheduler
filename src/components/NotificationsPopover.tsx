@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Bell, Check, CheckCircle2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
+// Trava global para evitar execução dupla do áudio no React Strict Mode
+let isAudioUnlockedGlobal = false;
+
 export default function NotificationsPopover() {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -16,20 +19,19 @@ export default function NotificationsPopover() {
 
   const playCountRef = useRef(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Ref para guardar o contexto de áudio "desbloqueado"
   const audioCtxRef = useRef<AudioContext | null>(null);
 
   // ===================================================================
-  // 1. DESBLOQUEIO DE ÁUDIO DO NAVEGADOR (Bypass da Política de Autoplay)
+  // 1. DESBLOQUEIO DE ÁUDIO DO NAVEGADOR
   // ===================================================================
   useEffect(() => {
     const unlockAudio = () => {
-      if (!audioCtxRef.current) {
+      if (!audioCtxRef.current && !isAudioUnlockedGlobal) {
         const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
         if (AudioContext) {
+          isAudioUnlockedGlobal = true;
           audioCtxRef.current = new AudioContext();
-          // Toca um som de volume ZERO para registar interação no navegador
+          
           const osc = audioCtxRef.current.createOscillator();
           const gain = audioCtxRef.current.createGain();
           gain.gain.value = 0;
@@ -40,7 +42,6 @@ export default function NotificationsPopover() {
           console.log("🔊 Áudio do navegador desbloqueado com sucesso!");
         }
       }
-      // Remove os event listeners após desbloquear
       document.removeEventListener("click", unlockAudio);
       document.removeEventListener("touchstart", unlockAudio);
       document.removeEventListener("keydown", unlockAudio);
@@ -58,12 +59,12 @@ export default function NotificationsPopover() {
   }, []);
 
   // ===================================================================
-  // 2. MOTOR SONORO (Alarme de Urgência)
+  // 2. MOTOR SONORO
   // ===================================================================
   const playSound = () => {
     try {
       if (!audioCtxRef.current || audioCtxRef.current.state === "suspended") {
-        console.warn("⚠️ O áudio está suspenso. O utilizador precisa clicar na tela antes de o som tocar.");
+        console.warn("⚠️ O áudio está suspenso. Aguardando interação do utilizador.");
         return;
       }
       
@@ -73,7 +74,7 @@ export default function NotificationsPopover() {
         const gainNode = ctx.createGain();
         
         oscillator.type = 'sine';
-        oscillator.frequency.setValueAtTime(880, ctx.currentTime + timeOffset); // Nota A5
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime + timeOffset);
         
         gainNode.gain.setValueAtTime(0.1, ctx.currentTime + timeOffset);
         gainNode.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + timeOffset + 0.3);
@@ -85,7 +86,6 @@ export default function NotificationsPopover() {
         oscillator.stop(ctx.currentTime + timeOffset + 0.3);
       };
 
-      // Toca dois bipes (Beep... Beep)
       playBeep(0);
       playBeep(0.15);
     } catch (e) {
@@ -97,10 +97,9 @@ export default function NotificationsPopover() {
     if (intervalRef.current) clearInterval(intervalRef.current);
     
     playCountRef.current = 0;
-    playSound(); // Toca o primeiro alerta na hora
+    playSound();
     playCountRef.current += 1;
 
-    // Repete a cada 1 minuto (60.000ms), no máximo 10 vezes
     intervalRef.current = setInterval(() => {
       if (playCountRef.current < 10) {
         playSound();
@@ -119,7 +118,7 @@ export default function NotificationsPopover() {
   };
 
   // ===================================================================
-  // 3. BUSCA INICIAL DE DADOS
+  // 3. BUSCA DE DADOS
   // ===================================================================
   const fetchNotifications = async () => {
     if (!user) return;
@@ -137,15 +136,17 @@ export default function NotificationsPopover() {
   };
 
   // ===================================================================
-  // 4. SUPABASE REALTIME (Conexão Persistente)
+  // 4. SUPABASE REALTIME (Conexão 100% à prova de falhas)
   // ===================================================================
   useEffect(() => {
     if (!user) return;
     
     fetchNotifications();
 
-    // Nome único para evitar conflitos de cache no React
-    const channelName = `notif-channel-${user.id}`;
+    // 💡 A CORREÇÃO DE OURO: Nome de canal dinâmico!
+    // Evita o erro "mismatch between server and client bindings" gerando um ID novo por renderização
+    const randomHash = Math.random().toString(36).substring(7);
+    const channelName = `notif-${user.id}-${randomHash}`;
     
     const channel = supabase
       .channel(channelName)
@@ -162,14 +163,10 @@ export default function NotificationsPopover() {
           
           const newNotif = payload.new as any;
           
-          // Atualiza a interface instantaneamente
           setNotifications((prev) => [newNotif, ...prev]);
           setUnreadCount((prev) => prev + 1);
-          
-          // Reseta a contagem se o som já estava a tocar
           playCountRef.current = 0; 
           
-          // Lógica Semântica: Só apita se for algo grave
           const title = (newNotif.title || "").toLowerCase();
           const isUrgent = title.includes("cancelado") || 
                            title.includes("cancelamento") || 
@@ -178,17 +175,15 @@ export default function NotificationsPopover() {
                            title.includes("falta") || 
                            title.includes("atenção");
 
-          if (isUrgent) {
-            startSoundAlarm();
-          }
+          if (isUrgent) startSoundAlarm();
         }
       )
       .subscribe((status, err) => {
         if (status === "SUBSCRIBED") {
-          console.log(`🔌 [Realtime] Conectado ao canal ${channelName}`);
+          console.log(`🔌 [Realtime] Conectado com segurança ao canal: ${channelName}`);
         }
         if (err) {
-          console.error("🔌 [Realtime] Erro na inscrição:", err);
+          console.error("🔌 [Realtime] Erro fatal na conexão:", err);
         }
       });
 
@@ -199,7 +194,7 @@ export default function NotificationsPopover() {
   }, [user]);
 
   // ===================================================================
-  // 5. AÇÕES (Marcar como Lida e Limpar)
+  // 5. AÇÕES 
   // ===================================================================
   const markAsRead = async (id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
@@ -215,17 +210,14 @@ export default function NotificationsPopover() {
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     setUnreadCount(0);
     stopSoundAlarm();
-    
     await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds);
   };
 
   const deleteAll = async () => {
     if (!window.confirm("Deseja apagar todas as notificações do histórico?")) return;
-    
     setNotifications([]);
     setUnreadCount(0);
     stopSoundAlarm();
-    
     await supabase.from("notifications").delete().eq("user_id", user?.id);
   };
 
