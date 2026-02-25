@@ -1,64 +1,58 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
-  // Liberação do CORS para navegadores
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // =======================================================================
-    // 1. MODO INVESTIGADOR: LER A SENHA (POR CABEÇALHO OU URL)
-    // =======================================================================
-    const url = new URL(req.url);
-    const querySecret = url.searchParams.get("secret");
+    // Validate caller is an admin
     const authHeader = req.headers.get("Authorization");
-    
-    // Lê a senha que você configurou no painel do Lovable Cloud
-    const cronSecret = Deno.env.get("CRON_SECRET");
-
-    // SE O LOVABLE NÃO CARREGOU A VARIÁVEL, AVISA O MOTIVO (Erro 500)
-    if (!cronSecret) {
-        return new Response(JSON.stringify({
-            erro: "Servidor desconfigurado",
-            detalhe: "A variável CRON_SECRET não foi encontrada. O Lovable não conseguiu ler o segredo na nuvem."
-        }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (!authHeader?.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // Tenta pegar a senha de onde o robô enviou
-    const tokenFromHeader = authHeader?.replace("Bearer ", "").trim();
-    const senhaRecebida = querySecret || tokenFromHeader;
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
 
-    // SE A SENHA ENVIADA FOR DIFERENTE, EXPLICA O QUE RECEBEU (Erro 401)
-    if (senhaRecebida !== cronSecret) {
-         return new Response(JSON.stringify({
-            erro: "Acesso Negado",
-            detalhe: "A chave recebida não coincide com a chave guardada no servidor.",
-            senhaRecebidaViaURL: querySecret || "Nenhuma",
-            senhaRecebidaViaHeader: authHeader || "Nenhuma"
-        }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const supabaseUser = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
+    if (userError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // =======================================================================
-    // 2. INICIALIZAR SUPABASE COMO ADMINISTRADOR DO SISTEMA
-    // =======================================================================
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const { data: callerProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
 
-    if (!supabaseUrl || !supabaseKey) {
-         return new Response(JSON.stringify({ erro: "Chaves do Supabase ausentes no servidor." }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (callerProfile?.role !== "admin") {
+      return new Response(JSON.stringify({ error: "Forbidden: admin only" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-
-    // =======================================================================
-    // 3. A SUA LÓGICA ORIGINAL DE NEGÓCIO
-    // =======================================================================
     const now = new Date();
     const in30 = new Date(now.getTime() + 30 * 60 * 1000);
     const in10 = new Date(now.getTime() + 10 * 60 * 1000);
@@ -66,13 +60,11 @@ Deno.serve(async (req) => {
     let processed = 0;
 
     // --- Lógica de 30 minutos ---
-    const { data: appts30, error: err30 } = await supabaseAdmin
+    const { data: appts30 } = await supabaseAdmin
       .from("appointments")
       .select("id, requester_id, description, timeslot_id, timeslots(start_time, department_id, departments(name))")
       .eq("status", "active")
       .eq("notified_30min", false);
-
-    if (err30) throw err30;
 
     for (const appt of appts30 || []) {
       const ts = appt.timeslots as any;
@@ -83,12 +75,14 @@ Deno.serve(async (req) => {
       const deptName = ts.departments?.name || "Setor";
       const horario = startTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Sao_Paulo" });
 
+      // Notificar o solicitante (escola)
       await supabaseAdmin.from("notifications").insert({
         user_id: appt.requester_id,
         title: "Lembrete de Agendamento",
         message: `Seu agendamento no ${deptName} começa em 30 minutos (${horario}).`,
       });
 
+      // Notificar usuários do setor
       const { data: deptUsers } = await supabaseAdmin
         .from("profiles")
         .select("id")
@@ -109,13 +103,11 @@ Deno.serve(async (req) => {
     }
 
     // --- Lógica de 10 minutos ---
-    const { data: appts10, error: err10 } = await supabaseAdmin
+    const { data: appts10 } = await supabaseAdmin
       .from("appointments")
       .select("id, requester_id, description, timeslot_id, timeslots(start_time, department_id, departments(name))")
       .eq("status", "active")
       .eq("notified_10min", false);
-
-    if (err10) throw err10;
 
     for (const appt of appts10 || []) {
       const ts = appt.timeslots as any;
@@ -151,13 +143,13 @@ Deno.serve(async (req) => {
       processed++;
     }
 
-    return new Response(JSON.stringify({ success: true, processados: processed }), {
+    return new Response(JSON.stringify({ success: true, processed }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
     console.error("[process-reminders] Error:", error);
-    return new Response(JSON.stringify({ erro: "Falha interna na lógica de banco de dados.", detalhes: error.message }), {
+    return new Response(JSON.stringify({ error: "Processamento falhou." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
