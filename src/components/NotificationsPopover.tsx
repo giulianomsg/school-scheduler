@@ -1,50 +1,154 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bell, Check, CheckCheck } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { formatDistanceToNow } from "date-fns";
-import { ptBR } from "date-fns/locale";
-
-interface Notification {
-  id: string;
-  user_id: string;
-  title: string;
-  message: string;
-  is_read: boolean;
-  created_at: string;
-}
+import { Badge } from "@/components/ui/badge";
+import { Bell, Check, CheckCircle2, Trash2 } from "lucide-react";
+import { format } from "date-fns";
 
 export default function NotificationsPopover() {
   const { user } = useAuth();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isOpen, setIsOpen] = useState(false);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
+  const playCountRef = useRef(0);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Ref para guardar o contexto de áudio "desbloqueado"
+  const audioCtxRef = useRef<AudioContext | null>(null);
 
+  // ===================================================================
+  // 1. DESBLOQUEIO DE ÁUDIO DO NAVEGADOR (Bypass da Política de Autoplay)
+  // ===================================================================
+  useEffect(() => {
+    const unlockAudio = () => {
+      if (!audioCtxRef.current) {
+        const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+        if (AudioContext) {
+          audioCtxRef.current = new AudioContext();
+          // Toca um som de volume ZERO para registar interação no navegador
+          const osc = audioCtxRef.current.createOscillator();
+          const gain = audioCtxRef.current.createGain();
+          gain.gain.value = 0;
+          osc.connect(gain);
+          gain.connect(audioCtxRef.current.destination);
+          osc.start();
+          osc.stop(audioCtxRef.current.currentTime + 0.1);
+          console.log("🔊 Áudio do navegador desbloqueado com sucesso!");
+        }
+      }
+      // Remove os event listeners após desbloquear
+      document.removeEventListener("click", unlockAudio);
+      document.removeEventListener("touchstart", unlockAudio);
+      document.removeEventListener("keydown", unlockAudio);
+    };
+
+    document.addEventListener("click", unlockAudio);
+    document.addEventListener("touchstart", unlockAudio);
+    document.addEventListener("keydown", unlockAudio);
+
+    return () => {
+      document.removeEventListener("click", unlockAudio);
+      document.removeEventListener("touchstart", unlockAudio);
+      document.removeEventListener("keydown", unlockAudio);
+    };
+  }, []);
+
+  // ===================================================================
+  // 2. MOTOR SONORO (Alarme de Urgência)
+  // ===================================================================
+  const playSound = () => {
+    try {
+      if (!audioCtxRef.current || audioCtxRef.current.state === "suspended") {
+        console.warn("⚠️ O áudio está suspenso. O utilizador precisa clicar na tela antes de o som tocar.");
+        return;
+      }
+      
+      const playBeep = (timeOffset: number) => {
+        const ctx = audioCtxRef.current!;
+        const oscillator = ctx.createOscillator();
+        const gainNode = ctx.createGain();
+        
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(880, ctx.currentTime + timeOffset); // Nota A5
+        
+        gainNode.gain.setValueAtTime(0.1, ctx.currentTime + timeOffset);
+        gainNode.gain.exponentialRampToValueAtTime(0.00001, ctx.currentTime + timeOffset + 0.3);
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        oscillator.start(ctx.currentTime + timeOffset);
+        oscillator.stop(ctx.currentTime + timeOffset + 0.3);
+      };
+
+      // Toca dois bipes (Beep... Beep)
+      playBeep(0);
+      playBeep(0.15);
+    } catch (e) {
+      console.error("Erro ao tentar reproduzir o áudio:", e);
+    }
+  };
+
+  const startSoundAlarm = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    
+    playCountRef.current = 0;
+    playSound(); // Toca o primeiro alerta na hora
+    playCountRef.current += 1;
+
+    // Repete a cada 1 minuto (60.000ms), no máximo 10 vezes
+    intervalRef.current = setInterval(() => {
+      if (playCountRef.current < 10) {
+        playSound();
+        playCountRef.current += 1;
+      } else {
+        stopSoundAlarm();
+      }
+    }, 60000); 
+  };
+
+  const stopSoundAlarm = () => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  // ===================================================================
+  // 3. BUSCA INICIAL DE DADOS
+  // ===================================================================
   const fetchNotifications = async () => {
     if (!user) return;
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("notifications")
       .select("*")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(30);
-    if (!error && data) {
-      setNotifications(data as Notification[]);
+      .limit(50);
+
+    if (data) {
+      setNotifications(data);
+      setUnreadCount(data.filter((n) => !n.is_read).length);
     }
   };
 
+  // ===================================================================
+  // 4. SUPABASE REALTIME (Conexão Persistente)
+  // ===================================================================
   useEffect(() => {
+    if (!user) return;
+    
     fetchNotifications();
 
-    if (!user) return;
-
+    // Nome único para evitar conflitos de cache no React
+    const channelName = `notif-channel-${user.id}`;
+    
     const channel = supabase
-      .channel("notifications-realtime")
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
@@ -54,129 +158,138 @@ export default function NotificationsPopover() {
           filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
-          const newNotif = payload.new as Notification;
+          console.log("⚡ [Realtime] Chegou nova notificação:", payload.new);
           
+          const newNotif = payload.new as any;
+          
+          // Atualiza a interface instantaneamente
           setNotifications((prev) => [newNotif, ...prev]);
+          setUnreadCount((prev) => prev + 1);
           
-          toast({
-            title: newNotif.title,
-            description: newNotif.message,
-          });
+          // Reseta a contagem se o som já estava a tocar
+          playCountRef.current = 0; 
           
-          // Motor de Som Inteligente: somente palavras de urgência disparam áudio
-          const titleLower = newNotif.title.toLowerCase();
-          const urgencyWords = ['cancelad', 'cancelamento', 'iminente', 'lembrete'];
-          const isUrgent = urgencyWords.some(word => titleLower.includes(word));
-          
+          // Lógica Semântica: Só apita se for algo grave
+          const title = (newNotif.title || "").toLowerCase();
+          const isUrgent = title.includes("cancelado") || 
+                           title.includes("cancelamento") || 
+                           title.includes("iminente") || 
+                           title.includes("lembrete") || 
+                           title.includes("falta") || 
+                           title.includes("atenção");
+
           if (isUrgent) {
-            try {
-              const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-              const oscillator = audioCtx.createOscillator();
-              const gainNode = audioCtx.createGain();
-              oscillator.connect(gainNode);
-              gainNode.connect(audioCtx.destination);
-              oscillator.frequency.value = 880;
-              oscillator.type = "sine";
-              gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
-              gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
-              oscillator.start(audioCtx.currentTime);
-              oscillator.stop(audioCtx.currentTime + 0.5);
-            } catch (e) {
-              console.warn("Web Audio API indisponível.", e);
-            }
+            startSoundAlarm();
           }
-          // Notificações de "Avaliação" ou "Conclusão" → apenas badge, sem som
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === "SUBSCRIBED") {
+          console.log(`🔌 [Realtime] Conectado ao canal ${channelName}`);
+        }
+        if (err) {
+          console.error("🔌 [Realtime] Erro na inscrição:", err);
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
+      stopSoundAlarm();
     };
   }, [user]);
 
+  // ===================================================================
+  // 5. AÇÕES (Marcar como Lida e Limpar)
+  // ===================================================================
   const markAsRead = async (id: string) => {
-    const { error } = await supabase
-      .from("notifications")
-      .update({ is_read: true })
-      .eq("id", id);
-    if (error) {
-      toast({ title: "Erro", description: "Não foi possível marcar como lida.", variant: "destructive" });
-    } else {
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
-      );
-    }
+    setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+    setUnreadCount((prev) => Math.max(0, prev - 1));
+    stopSoundAlarm();
+    await supabase.from("notifications").update({ is_read: true }).eq("id", id);
   };
 
   const markAllAsRead = async () => {
-    if (!user) return;
     const unreadIds = notifications.filter((n) => !n.is_read).map((n) => n.id);
     if (unreadIds.length === 0) return;
+    
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    setUnreadCount(0);
+    stopSoundAlarm();
+    
+    await supabase.from("notifications").update({ is_read: true }).in("id", unreadIds);
+  };
 
-    const { error } = await supabase
-      .from("notifications")
-      .update({ is_read: true })
-      .in("id", unreadIds);
-    if (error) {
-      toast({ title: "Erro", description: "Não foi possível marcar todas como lidas.", variant: "destructive" });
-    } else {
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    }
+  const deleteAll = async () => {
+    if (!window.confirm("Deseja apagar todas as notificações do histórico?")) return;
+    
+    setNotifications([]);
+    setUnreadCount(0);
+    stopSoundAlarm();
+    
+    await supabase.from("notifications").delete().eq("user_id", user?.id);
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative text-sidebar-foreground">
-          <Bell className="h-5 w-5" />
+        <Button variant="ghost" size="icon" className="relative transition-all hover:bg-slate-100">
+          <Bell className="h-5 w-5 text-slate-600" />
           {unreadCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
+            <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 bg-red-500 text-white rounded-full text-xs shadow-sm animate-pulse border border-white">
+              {unreadCount}
+            </Badge>
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end" sideOffset={8}>
-        <div className="flex items-center justify-between border-b px-4 py-3">
-          <h4 className="text-sm font-semibold">Notificações</h4>
-          {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs" onClick={markAllAsRead}>
-              <CheckCheck className="mr-1 h-3 w-3" />
-              Marcar todas
+      <PopoverContent align="end" className="w-80 p-0 shadow-xl border-slate-200">
+        <div className="flex items-center justify-between p-4 border-b bg-slate-50/50">
+          <h4 className="font-semibold text-sm text-slate-800">Meus Alertas</h4>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="icon" title="Marcar todas como lidas" onClick={markAllAsRead} disabled={unreadCount === 0} className="h-8 w-8 hover:bg-green-50">
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
             </Button>
-          )}
+            <Button variant="ghost" size="icon" title="Limpar histórico" onClick={deleteAll} disabled={notifications.length === 0} className="h-8 w-8 hover:bg-red-50 hover:text-red-600">
+              <Trash2 className="h-4 w-4 text-slate-400" />
+            </Button>
+          </div>
         </div>
-        <ScrollArea className="max-h-80">
+        <ScrollArea className="h-[350px]">
           {notifications.length === 0 ? (
-            <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              Nenhuma notificação.
+            <div className="p-8 text-center text-sm text-slate-500 flex flex-col items-center gap-3">
+              <div className="bg-slate-100 p-3 rounded-full">
+                <Bell className="h-6 w-6 text-slate-400" />
+              </div>
+              Nenhuma notificação no momento.
             </div>
           ) : (
-            <div className="divide-y">
+            <div className="flex flex-col">
               {notifications.map((n) => (
                 <div
                   key={n.id}
-                  className={`flex items-start gap-3 px-4 py-3 transition-colors ${
-                    n.is_read ? "opacity-60" : "bg-accent/30"
+                  className={`p-4 border-b last:border-0 transition-colors flex gap-3 ${
+                    n.is_read ? "bg-white hover:bg-slate-50" : "bg-indigo-50/60 hover:bg-indigo-50/80"
                   }`}
                 >
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium leading-tight">{n.title}</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">{n.message}</p>
-                    <p className="mt-1 text-[11px] text-muted-foreground/70">
-                      {formatDistanceToNow(new Date(n.created_at), { addSuffix: true, locale: ptBR })}
+                  <div className="flex-1 space-y-1">
+                    <p className={`text-sm ${n.is_read ? "text-slate-600" : "text-slate-900 font-semibold"}`}>
+                      {n.title}
+                    </p>
+                    <p className={`text-xs ${n.is_read ? "text-slate-500" : "text-slate-700"}`}>
+                      {n.message}
+                    </p>
+                    <p className="text-[10px] text-slate-400 pt-1 flex items-center gap-1">
+                      {format(new Date(n.created_at), "dd/MM/yyyy HH:mm")}
                     </p>
                   </div>
                   {!n.is_read && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 shrink-0"
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-7 w-7 shrink-0 text-indigo-600 hover:bg-indigo-200 mt-1" 
                       onClick={() => markAsRead(n.id)}
                       title="Marcar como lida"
                     >
-                      <Check className="h-3.5 w-3.5" />
+                      <Check className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
