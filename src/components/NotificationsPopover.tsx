@@ -80,25 +80,40 @@ export default function NotificationsPopover() {
     }
   };
 
+// ==========================================
+  // TEMPO REAL: MOTOR EXCLUSIVO (CapiFit Style)
+  // ==========================================
   useEffect(() => {
     if (!user) return;
+    
     fetchNotifications();
 
+    // 💡 CORREÇÃO 1: Nome de canal ÚNICO para não sofrer interferência de outras páginas
+    const channelName = `realtime-alerts-${user.id}`;
+    
     const channel = supabase
-      .channel("schema-db-changes")
+      .channel(channelName)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "notifications",
-          filter: `user_id=eq.${user.id}`,
+          filter: `user_id=eq.${user.id}`, // Filtra só as mensagens deste utilizador
         },
         (payload) => {
+          console.log("⚡ [Realtime] Nova notificação recebida na hora!", payload);
+          
           const newNotif = payload.new;
           setNotifications((prev) => [newNotif, ...prev]);
-          setUnreadCount((prev) => prev + 1);
           
+          setUnreadCount((prev) => {
+            const newCount = prev + 1;
+            playCountRef.current = 0; // Renova os 10 minutos
+            return newCount;
+          });
+          
+          // Verifica se é urgente para tocar o alarme
           const title = (newNotif.title || "").toLowerCase();
           const isUrgent = title.includes("cancelado") || 
                            title.includes("cancelamento") || 
@@ -111,9 +126,14 @@ export default function NotificationsPopover() {
           }
         }
       )
-      .subscribe();
+      .subscribe((status, err) => {
+        // 💡 CORREÇÃO 2: Feedback visual no F12 para ter certeza que está ligado
+        console.log(`🔌 [Realtime] Status do canal ${channelName}:`, status);
+        if (err) console.error("🔌 [Realtime] Erro na conexão:", err);
+      });
 
     return () => {
+      // Limpeza segura ao deslogar
       supabase.removeChannel(channel);
       stopSoundAlarm();
     };
