@@ -55,11 +55,26 @@ export default function NotificationsPopover() {
         },
         (payload) => {
           const newNotif = payload.new as Notification;
+          
           setNotifications((prev) => [newNotif, ...prev]);
+          
           toast({
-                  title: payload.new.title,
-                  description: payload.new.message,
-                });          
+            title: newNotif.title,
+            description: newNotif.message,
+          });
+          
+          // Análise léxica rigorosa para emitir som APENAS em eventos iminentes ou de cancelamento
+          const titleLower = newNotif.title.toLowerCase();
+          const isCriticalAlert = titleLower.includes('cancelad') || titleLower.includes('iminente');
+          
+          if (isCriticalAlert) {
+            try {
+              const audio = new Audio('/notification.mp3');
+              audio.play().catch((err) => console.warn("Interação do usuário necessária para reproduzir áudio.", err));
+            } catch (e) {
+              console.error("Erro ao carregar o alerta sonoro", e);
+            }
+          }
         }
       )
       .subscribe();

@@ -35,9 +35,17 @@ export default function CalendarPage() {
       const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
 
+      // Atualizado para buscar os dados relacionais da unidade escolar a partir do perfil
       const { data } = await supabase
         .from("appointments")
-        .select("*, timeslots!inner(*), profiles!appointments_requester_id_fkey(*)")
+        .select(`
+          *,
+          timeslots!inner(*),
+          profiles!appointments_requester_id_fkey(
+            *,
+            school_units(name)
+          )
+        `)
         .eq("timeslots.department_id", departmentId)
         .gte("timeslots.start_time", weekStart.toISOString())
         .lte("timeslots.start_time", weekEnd.toISOString())
@@ -54,11 +62,15 @@ export default function CalendarPage() {
   const prevWeek = () => setCurrentDate(addDays(currentDate, -7));
   const nextWeek = () => setCurrentDate(addDays(currentDate, 7));
 
-  const statusBadge = (status: string) => (
-    <Badge variant="outline" className={status === "active" ? "bg-success/10 text-success border-success/20" : "bg-destructive/10 text-destructive border-destructive/20"}>
-      {status === "active" ? "Ativo" : "Cancelado"}
-    </Badge>
-  );
+  const statusBadge = (status: string) => {
+    if (status === "active") {
+      return <Badge variant="outline" className="bg-success/10 text-success border-success/20">Ativo</Badge>;
+    }
+    if (status === "cancelled") {
+      return <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">Cancelado</Badge>;
+    }
+    return <Badge variant="outline" className="bg-secondary/20 text-secondary-foreground">{status}</Badge>;
+  };
 
   if (!departmentId && !loading) {
     return <div className="p-8 text-center text-muted-foreground">Você ainda não foi vinculado a nenhum setor. Contate o administrador.</div>;
@@ -100,18 +112,38 @@ export default function CalendarPage() {
                 {dayAppts.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center">—</p>
                 ) : (
-                  dayAppts.map((appt) => (
-                    <div key={appt.id} className="rounded-md border p-2 text-xs space-y-1">
-                      <div className="flex justify-between items-start">
-                        <span className="font-medium truncate">
-                          {format(new Date(appt.timeslots.start_time), "HH:mm")}
-                        </span>
-                        {statusBadge(appt.status)}
+                  dayAppts.map((appt) => {
+                    // Extração defensiva da estrutura aninhada retornada pelo Supabase
+                    const schoolData = appt.profiles?.school_units;
+                    const schoolName = Array.isArray(schoolData) ? schoolData[0]?.name : schoolData?.name;
+
+                    return (
+                      <div key={appt.id} className="rounded-md border p-2 text-xs space-y-1.5 flex flex-col">
+                        <div className="flex justify-between items-start">
+                          <span className="font-semibold truncate text-foreground">
+                            {format(new Date(appt.timeslots.start_time), "HH:mm")}
+                          </span>
+                          {statusBadge(appt.status)}
+                        </div>
+                        
+                        {schoolName && (
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium text-primary truncate" title={schoolName}>
+                              {schoolName}
+                            </span>
+                          </div>
+                        )}
+                        
+                        <p className="text-muted-foreground font-medium truncate" title={appt.profiles?.name || appt.profiles?.email}>
+                          {appt.profiles?.name || appt.profiles?.email}
+                        </p>
+                        
+                        <p className="text-muted-foreground/80 line-clamp-2 leading-relaxed" title={appt.description}>
+                          {appt.description}
+                        </p>
                       </div>
-                      <p className="text-muted-foreground truncate">{appt.profiles?.name || appt.profiles?.email}</p>
-                      <p className="text-muted-foreground truncate">{appt.description}</p>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </CardContent>
             </Card>
