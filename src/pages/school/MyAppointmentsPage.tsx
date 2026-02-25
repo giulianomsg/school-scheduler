@@ -45,50 +45,49 @@ export default function MyAppointmentsPage() {
     fetchAppointments();
   }, [user]);
 
-  const handleCancel = async (appointmentId: string, startTime: string, departmentId: string) => {
-    const appointmentTime = new Date(startTime).getTime();
-    const now = new Date().getTime();
-    const hoursDifference = (appointmentTime - now) / (1000 * 60 * 60);
+const handleCancel = async (id: string, startTime: string) => {
+    const start = new Date(startTime);
+    const now = new Date();
+    const diffHours = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-    if (hoursDifference < 2 && hoursDifference > 0) {
-      toast({
-        title: "Ação não permitida",
-        description: "Cancelamentos só podem ser feitos com pelo menos 2 horas de antecedência.",
-        variant: "destructive",
-      });
+    if (diffHours < 2) {
+      toast({ title: "Atenção", description: "Faltam menos de 2 horas. O cancelamento não é mais permitido.", variant: "destructive" });
       return;
     }
 
-    if (!window.confirm("Tem certeza que deseja cancelar este agendamento?")) return;
+    if (!window.confirm("Deseja realmente cancelar este agendamento?")) return;
 
     try {
-      const { error } = await supabase
-        .from("appointments")
-        .update({ status: "cancelled", cancel_reason: "Cancelado pela Escola" })
-        .eq("id", appointmentId);
+      await supabase.from("appointments").update({ status: "cancelled" }).eq("id", id);
+      
+      const appt = appointments.find(a => a.id === id);
+      if (appt && appt.timeslots?.department_id) {
+         
+         // 💡 BUSCA O NOME DA ESCOLA DO USUÁRIO LOGADO
+         const { data: profile } = await supabase
+           .from("profiles")
+           .select("unidades_escolares(nome_escola)")
+           .eq("id", user?.id)
+           .single();
+         
+         const schoolName = profile?.unidades_escolares?.nome_escola || "Uma escola";
 
-      if (error) throw error;
-
-      // Dispara a notificação para o Setor
-      const { data: deptUsers } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("department_id", departmentId);
-
-      if (deptUsers) {
-        const notifications = deptUsers.map(u => ({
-          user_id: u.id,
-          title: "Cancelamento de Escola",
-          message: "Uma escola cancelou um agendamento.",
-        }));
-        await supabase.from("notifications").insert(notifications);
+         const { data: deptUsers } = await supabase.from("profiles").select("id").eq("department_id", appt.timeslots.department_id);
+         if (deptUsers && deptUsers.length > 0) {
+             const notes = deptUsers.map(u => ({
+                 user_id: u.id,
+                 title: "Cancelamento de Reunião",
+                 // 💡 MENSAGEM ATUALIZADA: Exibe o nome da escola
+                 message: `A escola ${schoolName} cancelou o atendimento que estava agendado.`
+             }));
+             await supabase.from("notifications").insert(notes);
+         }
       }
 
       toast({ title: "Sucesso", description: "Agendamento cancelado." });
-      fetchAppointments(); // Recarrega a lista
-      
+      fetchAppointments();
     } catch (error: any) {
-      toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     }
   };
 

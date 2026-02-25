@@ -95,18 +95,18 @@ export default function DepartmentDashboard() {
       return;
     }
     try {
-      const { error } = await supabase
-        .from("appointments")
-        .update({ status: "cancelled", cancel_reason: reason })
-        .eq("id", appointmentId);
-        
-      if (error) throw error; // Validação estrita do erro
+      await supabase.from("appointments").update({ status: "cancelled", cancel_reason: reason }).eq("id", appointmentId);
       
-      toast({ title: "Sucesso", description: "Agendamento cancelado." });
+      // 💡 NOTIFICAÇÃO ATUALIZADA: Inclui o nome do Setor
+      await supabase.from("notifications").insert({ 
+        user_id: schoolUserId, 
+        title: `Cancelamento: Setor ${departmentName}`, 
+        message: `O setor ${departmentName} cancelou o seu agendamento. Motivo: ${reason}` 
+      });
+      
+      toast({ title: "Sucesso", description: "Agendamento cancelado e escola notificada." });
       fetchData();
-    } catch (error: any) { 
-      toast({ title: "Erro na operação", description: error.message, variant: "destructive" }); 
-    }
+    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
   };
 
   const handleMarkNoShow = async (appointmentId: string) => {
