@@ -108,6 +108,7 @@ export default function CalendarPage() {
                         </span>
                         {statusBadge(appt.status)}
                       </div>
+                      <p className="text-muted-foreground truncate">{appt.profiles?.department_id.name}</p>
                       <p className="text-muted-foreground truncate">{appt.profiles?.name || appt.profiles?.email}</p>
                       <p className="text-muted-foreground truncate">{appt.description}</p>
                     </div>
