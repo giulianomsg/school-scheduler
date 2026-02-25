@@ -1,57 +1,23 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
+  // Lida com CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Validate caller is an admin
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
+    // INICIALIZA DIRETAMENTE O SUPABASE COM PODERES DE ADMIN (Service Role)
+    // Sem barreiras, sem senhas extras.
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-
-    const supabaseUser = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    );
-
-    const { data: { user }, error: userError } = await supabaseUser.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const { data: callerProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    if (callerProfile?.role !== "admin") {
-      return new Response(JSON.stringify({ error: "Forbidden: admin only" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const now = new Date();
     const in30 = new Date(now.getTime() + 30 * 60 * 1000);
@@ -59,7 +25,9 @@ Deno.serve(async (req) => {
 
     let processed = 0;
 
+    // ==========================================
     // --- Lógica de 30 minutos ---
+    // ==========================================
     const { data: appts30 } = await supabaseAdmin
       .from("appointments")
       .select("id, requester_id, description, timeslot_id, timeslots(start_time, department_id, departments(name))")
@@ -102,7 +70,9 @@ Deno.serve(async (req) => {
       processed++;
     }
 
+    // ==========================================
     // --- Lógica de 10 minutos ---
+    // ==========================================
     const { data: appts10 } = await supabaseAdmin
       .from("appointments")
       .select("id, requester_id, description, timeslot_id, timeslots(start_time, department_id, departments(name))")
@@ -149,7 +119,7 @@ Deno.serve(async (req) => {
     });
   } catch (error: any) {
     console.error("[process-reminders] Error:", error);
-    return new Response(JSON.stringify({ error: "Processamento falhou." }), {
+    return new Response(JSON.stringify({ error: "Processamento falhou.", details: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
