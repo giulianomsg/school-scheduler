@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, Clock, Trash2, CalendarPlus, AlertCircle } from "lucide-react";
+import { CalendarDays, Clock, Trash2, CalendarPlus, AlertCircle, CopyPlus } from "lucide-react";
 import { format, isPast, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
@@ -17,10 +17,11 @@ export default function TimeslotsPage() {
   const [timeslots, setTimeslots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados do Formulário
+  // Estados do Formulário (Agora com duração)
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
+  const [duration, setDuration] = useState("30"); // Padrão: 30 minutos
 
   const fetchTimeslots = async () => {
     if (!user) return;
@@ -50,13 +51,18 @@ export default function TimeslotsPage() {
     fetchTimeslots();
   }, [user]);
 
+  // ==========================================
+  // MOTOR DE CRIAÇÃO AUTOMÁTICA EM LOTE
+  // ==========================================
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!departmentId || !date || !startTime || !endTime) return;
+    if (!departmentId || !date || !startTime || !endTime || !duration) return;
 
     const startDateTime = new Date(`${date}T${startTime}:00`);
     const endDateTime = new Date(`${date}T${endTime}:00`);
+    const durationMins = parseInt(duration, 10);
 
+    // Validações Lógicas
     if (startDateTime < new Date()) {
       toast({ title: "Atenção", description: "Não é possível criar horários no passado.", variant: "destructive" });
       return;
@@ -67,17 +73,48 @@ export default function TimeslotsPage() {
       return;
     }
 
-    try {
-      const { error } = await supabase.from("timeslots").insert({
+    if (durationMins < 5) {
+      toast({ title: "Atenção", description: "A duração mínima do atendimento é de 5 minutos.", variant: "destructive" });
+      return;
+    }
+
+    // Processamento de Fracionamento (Loop)
+    let current = startDateTime;
+    const slotsToInsert = [];
+
+    while (current < endDateTime) {
+      const next = new Date(current.getTime() + durationMins * 60000);
+      
+      // Impede a criação de um slot cortado que passe do horário de encerramento do expediente
+      if (next > endDateTime) break;
+
+      slotsToInsert.push({
         department_id: departmentId,
-        start_time: startDateTime.toISOString(),
-        end_time: endDateTime.toISOString(),
+        start_time: current.toISOString(),
+        end_time: next.toISOString(),
         is_available: true,
       });
 
+      current = next; // Avança o relógio
+    }
+
+    if (slotsToInsert.length === 0) {
+      toast({ title: "Atenção", description: "O período é menor que a duração de um atendimento.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      // Inserção em massa (Bulk Insert) no Supabase de uma só vez
+      const { error } = await supabase.from("timeslots").insert(slotsToInsert);
+
       if (error) throw error;
 
-      toast({ title: "Sucesso", description: "Horário criado com sucesso!" });
+      toast({ 
+        title: "Agenda Gerada com Sucesso!", 
+        description: `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos.` 
+      });
+      
+      // Limpa as horas (mantemos a data caso queira criar outro período no mesmo dia)
       setStartTime("");
       setEndTime("");
       fetchTimeslots();
@@ -123,16 +160,12 @@ export default function TimeslotsPage() {
     }
   };
 
-  // ==========================================
-  // AGRUPAMENTO E ORGANIZAÇÃO (LÓGICA CLIENT-SIDE)
-  // ==========================================
   const now = new Date();
 
-  // Separa em Futuros e Expirados
+  // Separação em Futuros e Expirados
   const futureSlots = timeslots.filter(t => new Date(t.start_time) >= now);
   const pastSlots = timeslots.filter(t => new Date(t.start_time) < now);
 
-  // Função para agrupar array de horários por Dia
   const groupByDate = (slots: any[]) => {
     return slots.reduce((acc: any, slot) => {
       const dateKey = format(new Date(slot.start_time), "yyyy-MM-dd");
@@ -145,7 +178,6 @@ export default function TimeslotsPage() {
   const futureGrouped = groupByDate(futureSlots);
   const pastGrouped = groupByDate(pastSlots);
 
-  // Componente de Renderização do Cartão de Horário
   const SlotCard = ({ slot }: { slot: any }) => (
     <div className={`flex items-center justify-between p-3 border rounded-md mb-2 ${slot.is_available ? 'bg-white' : 'bg-slate-50 border-slate-200 opacity-80'}`}>
       <div className="flex items-center gap-3">
@@ -166,7 +198,6 @@ export default function TimeslotsPage() {
         </div>
       </div>
       
-      {/* Botão de Apagar só aparece se estiver livre */}
       {slot.is_available && (
         <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(slot.id)}>
           <Trash2 className="w-4 h-4" />
@@ -179,33 +210,42 @@ export default function TimeslotsPage() {
     <div className="space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Gerenciamento de Horários</h1>
-        <p className="text-muted-foreground">Disponibilize vagas para as escolas agendarem no seu setor.</p>
+        <p className="text-muted-foreground">Crie e disponibilize vagas para as escolas agendarem no seu setor.</p>
       </div>
 
       <Card className="border-indigo-100 shadow-sm">
         <CardHeader className="bg-indigo-50/50 pb-4">
           <CardTitle className="flex items-center gap-2 text-indigo-800">
             <CalendarPlus className="w-5 h-5" />
-            Adicionar Novo Horário
+            Adicionar Expediente
           </CardTitle>
         </CardHeader>
         <CardContent className="pt-6">
-          <form onSubmit={handleCreate} className="flex flex-col sm:flex-row items-end gap-4">
-            <div className="space-y-2 w-full">
-              <label className="text-sm font-medium">Data do Atendimento</label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required min={format(now, "yyyy-MM-dd")} />
+          <form onSubmit={handleCreate} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Data do Atendimento</label>
+                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required min={format(now, "yyyy-MM-dd")} className="bg-white" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Hora Início (Ex: 08:00)</label>
+                <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required className="bg-white" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Hora Fim (Ex: 12:00)</label>
+                <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required className="bg-white" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Duração (minutos)</label>
+                <Input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} required className="bg-white" placeholder="Ex: 30" />
+              </div>
             </div>
-            <div className="space-y-2 w-full">
-              <label className="text-sm font-medium">Hora de Início</label>
-              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+            <div className="flex justify-end pt-2">
+              <Button type="submit" className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2">
+                <CopyPlus className="w-4 h-4" />
+                Gerar Vagas Automaticamente
+              </Button>
             </div>
-            <div className="space-y-2 w-full">
-              <label className="text-sm font-medium">Hora de Fim</label>
-              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
-            </div>
-            <Button type="submit" className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700">
-              Criar Vaga
-            </Button>
           </form>
         </CardContent>
       </Card>
@@ -225,7 +265,6 @@ export default function TimeslotsPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* ABA 1: FUTUROS */}
           <TabsContent value="future" className="space-y-6">
             {Object.keys(futureGrouped).length === 0 ? (
               <Card>
@@ -242,7 +281,7 @@ export default function TimeslotsPage() {
                     <CalendarDays className="w-5 h-5 text-indigo-500" />
                     {format(parseISO(dateKey), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {futureGrouped[dateKey].map((slot: any) => (
                       <SlotCard key={slot.id} slot={slot} />
                     ))}
@@ -252,7 +291,6 @@ export default function TimeslotsPage() {
             )}
           </TabsContent>
 
-          {/* ABA 2: EXPIRADOS */}
           <TabsContent value="past" className="space-y-6">
             {pastSlots.length > 0 && (
               <div className="flex justify-between items-center bg-amber-50 p-4 rounded-lg border border-amber-200">
@@ -273,14 +311,13 @@ export default function TimeslotsPage() {
             {Object.keys(pastGrouped).length === 0 ? (
               <p className="text-center text-muted-foreground py-8">Nenhum horário expirado.</p>
             ) : (
-              // Mostra os expirados do mais recente para o mais antigo
               Object.keys(pastGrouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()).map(dateKey => (
                 <div key={dateKey} className="mb-6 opacity-75">
                   <h3 className="font-bold text-slate-500 mb-3 flex items-center gap-2 border-b pb-2">
                     <CalendarDays className="w-4 h-4" />
                     {format(parseISO(dateKey), "dd/MM/yyyy", { locale: ptBR })}
                   </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {pastGrouped[dateKey].map((slot: any) => (
                       <SlotCard key={slot.id} slot={slot} />
                     ))}
