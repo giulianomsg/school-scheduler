@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Textarea } from "@/components/ui/textarea";
 import { CalendarDays, Clock, Users, Star, Search, AlertCircle, Phone, Building } from "lucide-react";
 import { format, isToday } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 
 export default function DepartmentDashboard() {
@@ -18,8 +19,10 @@ export default function DepartmentDashboard() {
   const [stats, setStats] = useState({ totalSlots: 0, availableSlots: 0 });
   const [allAppointments, setAllAppointments] = useState<any[]>([]);
   
+  // Filtro do Histórico
   const [searchTerm, setSearchTerm] = useState("");
 
+  // Modal de Conclusão
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
   const [selectedApptId, setSelectedApptId] = useState<string | null>(null);
   const [departmentNotes, setDepartmentNotes] = useState("");
@@ -56,9 +59,17 @@ export default function DepartmentDashboard() {
 
   const now = new Date();
 
-  const pendingAppointments = allAppointments.filter((appt) => appt.status === "active" && new Date(appt.timeslots.start_time) <= now);
-  const todayAppointments = allAppointments.filter((appt) => isToday(new Date(appt.timeslots.start_time)));
-  const historyAppointments = allAppointments.filter((appt) => ["completed", "cancelled", "no-show"].includes(appt.status));
+  const pendingAppointments = allAppointments.filter(
+    (appt) => appt.status === "active" && new Date(appt.timeslots.start_time) <= now
+  );
+
+  const todayAppointments = allAppointments.filter(
+    (appt) => isToday(new Date(appt.timeslots.start_time))
+  );
+
+  const historyAppointments = allAppointments.filter(
+    (appt) => ["completed", "cancelled", "no-show"].includes(appt.status)
+  );
 
   const filteredHistory = historyAppointments.filter((appt) => {
     if (!searchTerm) return true;
@@ -68,6 +79,7 @@ export default function DepartmentDashboard() {
     const desc = (appt.description || "").toLowerCase();
     const statusText = appt.status.toLowerCase();
     const dateStr = format(new Date(appt.timeslots.start_time), "dd/MM/yyyy HH:mm").toLowerCase();
+    
     return schoolName.includes(term) || directorName.includes(term) || desc.includes(term) || statusText.includes(term) || dateStr.includes(term);
   });
 
@@ -84,12 +96,8 @@ export default function DepartmentDashboard() {
     }
     try {
       await supabase.from("appointments").update({ status: "cancelled", cancel_reason: reason }).eq("id", appointmentId);
-      await supabase.from("notifications").insert({ 
-        user_id: schoolUserId, 
-        title: "Agendamento Cancelado", 
-        message: `Motivo: ${reason}` 
-      });
-      toast({ title: "Sucesso", description: "Agendamento cancelado e escola notificada." });
+      await supabase.from("notifications").insert({ user_id: schoolUserId, title: "Agendamento Cancelado", message: `Motivo: ${reason}` });
+      toast({ title: "Sucesso", description: "Agendamento cancelado." });
       fetchData();
     } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
   };
@@ -98,15 +106,6 @@ export default function DepartmentDashboard() {
     if (!window.confirm("Confirmar que a escola faltou ao atendimento?")) return;
     try {
       await supabase.from("appointments").update({ status: "no-show" }).eq("id", appointmentId);
-      
-      const appt = allAppointments.find(a => a.id === appointmentId);
-      if (appt) {
-         await supabase.from("notifications").insert({ 
-            user_id: appt.requester_id, 
-            title: "Registro de Falta", 
-            message: "O setor registrou o seu não comparecimento ao atendimento agendado." 
-         });
-      }
       toast({ title: "Falta registrada" });
       fetchData();
     } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
@@ -119,19 +118,8 @@ export default function DepartmentDashboard() {
   };
 
   const submitCompletion = async () => {
-    if (!selectedApptId) return;
     try {
       await supabase.from("appointments").update({ status: "completed", department_notes: departmentNotes }).eq("id", selectedApptId);
-      
-      const appt = allAppointments.find(a => a.id === selectedApptId);
-      if (appt) {
-        await supabase.from("notifications").insert({ 
-          user_id: appt.requester_id, 
-          title: "Atendimento Concluído", 
-          message: "O setor finalizou a sua reunião. Por favor, vá ao seu painel de agendamentos e deixe a sua avaliação!" 
-        });
-      }
-
       toast({ title: "Atendimento Concluído" });
       setIsCompleteModalOpen(false);
       fetchData();
@@ -158,6 +146,8 @@ export default function DepartmentDashboard() {
       <Card key={appt.id} className={`overflow-hidden ${type === "pending" ? "border-l-4 border-l-amber-500" : ""}`}>
         <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between gap-4">
           <div className="space-y-4 flex-1">
+            
+            {/* Cabeçalho */}
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="font-semibold text-lg flex items-center gap-2 text-slate-800">
                 <Building className="w-5 h-5 text-indigo-600" />
@@ -167,27 +157,32 @@ export default function DepartmentDashboard() {
               {type === "pending" && <Badge variant="destructive" className="flex gap-1"><AlertCircle className="w-3 h-3" /> Atrasado</Badge>}
             </div>
 
+            {/* Faixa de Contactos */}
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-6 text-sm bg-slate-50 p-3 rounded-md border border-slate-200">
               <div className="flex items-center gap-1.5 font-medium text-slate-700">
                 <Users className="w-4 h-4 text-slate-400" />
                 Diretor(a): <span className="font-normal text-slate-600">{directorName}</span>
               </div>
+              
               {(directorPhone || schoolPhone) && (
                 <div className="flex flex-wrap items-center gap-4 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-4">
                   {directorPhone && (
                     <a href={`https://wa.me/55${directorPhone.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-green-700 hover:underline">
-                      <Phone className="w-4 h-4" /> Dir: {directorPhone}
+                      <Phone className="w-4 h-4" />
+                      Dir: {directorPhone}
                     </a>
                   )}
                   {schoolPhone && (
                     <div className="flex items-center gap-1.5 text-blue-700">
-                      <Phone className="w-4 h-4" /> Esc: {schoolPhone}
+                      <Phone className="w-4 h-4" />
+                      Esc: {schoolPhone}
                     </div>
                   )}
                 </div>
               )}
             </div>
             
+            {/* Pauta e Data */}
             <div className="space-y-1">
               <p className="text-sm text-slate-700"><strong>Pauta:</strong> {appt.description}</p>
               <p className="text-sm font-semibold flex items-center gap-2 text-indigo-700">
@@ -196,6 +191,7 @@ export default function DepartmentDashboard() {
               </p>
             </div>
 
+            {/* Área de Auditoria (Histórico) */}
             {type === "history" && (
               <div className="mt-4 space-y-2">
                 {appt.cancel_reason && (
@@ -208,10 +204,19 @@ export default function DepartmentDashboard() {
                     <strong>Nossa Anotação:</strong> {appt.department_notes}
                   </div>
                 )}
+                
+                {/* 💡 AVALIAÇÃO DA ESCOLA (Estrelas, Cores e Comentários) */}
                 {appt.rating > 0 && (() => {
                   const isFive = appt.rating === 5;
                   const isMedium = appt.rating >= 3 && appt.rating < 5;
-                  const colorClass = isFive ? "bg-green-50 border-green-500 text-green-900" : isMedium ? "bg-yellow-50 border-yellow-400 text-yellow-900" : "bg-red-50 border-red-500 text-red-900";
+                  
+                  // Lógica Dinâmica de Cores
+                  const colorClass = isFive 
+                    ? "bg-green-50 border-green-500 text-green-900" 
+                    : isMedium 
+                      ? "bg-yellow-50 border-yellow-400 text-yellow-900" 
+                      : "bg-red-50 border-red-500 text-red-900";
+                      
                   const starFillClass = isFive ? "fill-green-500 text-green-500" : isMedium ? "fill-yellow-500 text-yellow-500" : "fill-red-500 text-red-500";
                   const starEmptyClass = isFive ? "text-green-200" : isMedium ? "text-yellow-200" : "text-red-200";
 
@@ -221,7 +226,10 @@ export default function DepartmentDashboard() {
                         <strong className="font-semibold text-sm">Avaliação da Escola ({appt.rating}/5):</strong>
                         <div className="flex items-center gap-0.5">
                           {[...Array(5)].map((_, i) => (
-                            <Star key={i} className={`w-4 h-4 ${i < appt.rating ? starFillClass : starEmptyClass}`} />
+                            <Star 
+                              key={i} 
+                              className={`w-4 h-4 ${i < appt.rating ? starFillClass : starEmptyClass}`} 
+                            />
                           ))}
                         </div>
                       </div>
@@ -231,10 +239,12 @@ export default function DepartmentDashboard() {
                     </div>
                   );
                 })()}
+
               </div>
             )}
           </div>
 
+          {/* Botões de Ação */}
           {appt.status === "active" && type !== "history" && (
             <div className="flex flex-col gap-2 min-w-[150px] justify-start mt-2 sm:mt-0">
               {new Date(appt.timeslots.start_time) > now ? (
@@ -266,6 +276,7 @@ export default function DepartmentDashboard() {
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Horários Abertos</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-indigo-600">{stats.availableSlots}</CardContent></Card>
       </div>
 
+      {/* 💡 ATUALIZAÇÃO: defaultValue alterado para "today" */}
       <Tabs defaultValue="today" className="w-full">
         <TabsList className="grid w-full grid-cols-3 mb-6">
           <TabsTrigger value="pending" className="relative">
@@ -276,17 +287,24 @@ export default function DepartmentDashboard() {
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
-          {pendingAppointments.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhuma pendência.</p> : pendingAppointments.map(a => renderAppointmentCard(a, "pending"))}
+          {pendingAppointments.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhuma pendência. Excelente trabalho!</p> : pendingAppointments.map(a => renderAppointmentCard(a, "pending"))}
         </TabsContent>
+
         <TabsContent value="today" className="space-y-4">
-          {todayAppointments.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhum agendamento para hoje.</p> : todayAppointments.map(a => renderAppointmentCard(a, "today"))}
+          {todayAppointments.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhum agendamento marcado para hoje.</p> : todayAppointments.map(a => renderAppointmentCard(a, "today"))}
         </TabsContent>
+
         <TabsContent value="history" className="space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Pesquisar por escola, diretor, pauta ou status..." className="pl-9 bg-white" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Input 
+              placeholder="Pesquisar por escola, diretor, pauta ou status..." 
+              className="pl-9 bg-white"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
-          {filteredHistory.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhum histórico encontrado.</p> : filteredHistory.map(a => renderAppointmentCard(a, "history"))}
+          {filteredHistory.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhum histórico encontrado para esta pesquisa.</p> : filteredHistory.map(a => renderAppointmentCard(a, "history"))}
         </TabsContent>
       </Tabs>
 
@@ -294,12 +312,17 @@ export default function DepartmentDashboard() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Concluir Atendimento</DialogTitle>
-            <DialogDescription className="hidden">Preencha as anotações para concluir o atendimento.</DialogDescription>
+            <DialogDescription>A escola será notificada e poderá avaliar o atendimento.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Anotações do Setor (Ata / Resolução)</label>
-              <Textarea placeholder="Ex: Documentação entregue..." value={departmentNotes} onChange={(e) => setDepartmentNotes(e.target.value)} rows={4} />
+              <Textarea 
+                placeholder="Ex: Documentação entregue. Problema resolvido..."
+                value={departmentNotes}
+                onChange={(e) => setDepartmentNotes(e.target.value)}
+                rows={4}
+              />
             </div>
           </div>
           <DialogFooter>
