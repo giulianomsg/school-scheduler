@@ -184,6 +184,7 @@ function getNavItems(role?: string) {
       { href: "/", label: "Painel", icon: LayoutDashboard },
       { href: "/book", label: "Agendar", icon: CalendarDays },
       { href: "/my-appointments", label: "Meus Agendamentos", icon: School },
+      { href: "/school/calendar", label: "Calendário da Escola", icon: Clock },
       { href: "/profile", label: "Meu Perfil", icon: User }
     );
   }

@@ -63,18 +63,29 @@ export default function NotificationsPopover() {
             description: newNotif.message,
           });
           
-          // Análise léxica rigorosa para emitir som APENAS em eventos iminentes ou de cancelamento
+          // Motor de Som Inteligente: somente palavras de urgência disparam áudio
           const titleLower = newNotif.title.toLowerCase();
-          const isCriticalAlert = titleLower.includes('cancelad') || titleLower.includes('iminente');
+          const urgencyWords = ['cancelad', 'cancelamento', 'iminente', 'lembrete'];
+          const isUrgent = urgencyWords.some(word => titleLower.includes(word));
           
-          if (isCriticalAlert) {
+          if (isUrgent) {
             try {
-              const audio = new Audio('/notification.mp3');
-              audio.play().catch((err) => console.warn("Interação do usuário necessária para reproduzir áudio.", err));
+              const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+              const oscillator = audioCtx.createOscillator();
+              const gainNode = audioCtx.createGain();
+              oscillator.connect(gainNode);
+              gainNode.connect(audioCtx.destination);
+              oscillator.frequency.value = 880;
+              oscillator.type = "sine";
+              gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+              gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+              oscillator.start(audioCtx.currentTime);
+              oscillator.stop(audioCtx.currentTime + 0.5);
             } catch (e) {
-              console.error("Erro ao carregar o alerta sonoro", e);
+              console.warn("Web Audio API indisponível.", e);
             }
           }
+          // Notificações de "Avaliação" ou "Conclusão" → apenas badge, sem som
         }
       )
       .subscribe();

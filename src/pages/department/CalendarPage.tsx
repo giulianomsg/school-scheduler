@@ -12,7 +12,7 @@ export default function CalendarPage() {
   const { user } = useAuth();
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [appointments, setAppointments] = useState<any[]>([]);
+  const [timeslots, setTimeslots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,29 +31,35 @@ export default function CalendarPage() {
 
   useEffect(() => {
     if (!departmentId) return;
-    const fetchAppointments = async () => {
+    const fetchTimeslots = async () => {
       const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
       const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
 
-      // Atualizado para buscar os dados relacionais da unidade escolar a partir do perfil
+      // Busca timeslots do setor com left join em appointments e perfis/escola
       const { data } = await supabase
-        .from("appointments")
+        .from("timeslots")
         .select(`
           *,
-          timeslots!inner(*),
-          profiles!appointments_requester_id_fkey(
-            *,
-            school_units(name)
+          appointments(
+            id,
+            status,
+            description,
+            requester_id,
+            profiles:requester_id(
+              name,
+              email,
+              unidades_escolares:school_unit_id(nome_escola)
+            )
           )
         `)
-        .eq("timeslots.department_id", departmentId)
-        .gte("timeslots.start_time", weekStart.toISOString())
-        .lte("timeslots.start_time", weekEnd.toISOString())
-        .order("created_at", { ascending: true });
+        .eq("department_id", departmentId)
+        .gte("start_time", weekStart.toISOString())
+        .lte("start_time", weekEnd.toISOString())
+        .order("start_time", { ascending: true });
 
-      setAppointments(data || []);
+      setTimeslots(data || []);
     };
-    fetchAppointments();
+    fetchTimeslots();
   }, [departmentId, currentDate]);
 
   const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -63,13 +69,13 @@ export default function CalendarPage() {
   const nextWeek = () => setCurrentDate(addDays(currentDate, 7));
 
   const statusBadge = (status: string) => {
-    if (status === "active") {
-      return <Badge variant="outline" className="bg-success/10 text-success border-success/20">Ativo</Badge>;
+    switch (status) {
+      case "active": return <Badge variant="outline" className="bg-blue-100 text-blue-700 border-blue-200 text-[10px]">Ativo</Badge>;
+      case "cancelled": return <Badge variant="outline" className="bg-gray-100 text-gray-700 border-gray-200 text-[10px]">Cancelado</Badge>;
+      case "completed": return <Badge variant="outline" className="bg-green-100 text-green-700 border-green-200 text-[10px]">Concluído</Badge>;
+      case "no-show": return <Badge variant="outline" className="bg-red-100 text-red-700 border-red-200 text-[10px]">Falta</Badge>;
+      default: return <Badge variant="outline" className="text-[10px]">{status}</Badge>;
     }
-    if (status === "cancelled") {
-      return <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">Cancelado</Badge>;
-    }
-    return <Badge variant="outline" className="bg-secondary/20 text-secondary-foreground">{status}</Badge>;
   };
 
   if (!departmentId && !loading) {
@@ -94,8 +100,8 @@ export default function CalendarPage() {
 
       <div className="grid gap-4 md:grid-cols-7">
         {weekDays.map((day) => {
-          const dayAppts = appointments.filter((a) =>
-            isSameDay(new Date(a.timeslots.start_time), day)
+          const daySlots = timeslots.filter((ts) =>
+            isSameDay(new Date(ts.start_time), day)
           );
           const isToday = isSameDay(day, new Date());
 
@@ -109,34 +115,41 @@ export default function CalendarPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-3 pb-3 space-y-2">
-                {dayAppts.length === 0 ? (
+                {daySlots.length === 0 ? (
                   <p className="text-xs text-muted-foreground text-center">—</p>
                 ) : (
-                  dayAppts.map((appt) => {
-                    // Extração defensiva da estrutura aninhada retornada pelo Supabase
-                    const schoolData = appt.profiles?.school_units;
-                    const schoolName = Array.isArray(schoolData) ? schoolData[0]?.name : schoolData?.name;
+                  daySlots.map((slot) => {
+                    const appt = Array.isArray(slot.appointments) ? slot.appointments[0] : slot.appointments;
+                    const hasAppointment = appt && appt.id;
+
+                    if (!hasAppointment) {
+                      // Horário livre
+                      return (
+                        <div key={slot.id} className="rounded-md border border-dashed p-2 text-xs text-muted-foreground text-center">
+                          {format(new Date(slot.start_time), "HH:mm")} — Livre
+                        </div>
+                      );
+                    }
+
+                    // Extração defensiva do nome da escola
+                    const profileData = appt.profiles;
+                    const schoolData = profileData?.unidades_escolares;
+                    const schoolName = Array.isArray(schoolData) ? schoolData[0]?.nome_escola : schoolData?.nome_escola;
 
                     return (
-                      <div key={appt.id} className="rounded-md border p-2 text-xs space-y-1.5 flex flex-col">
+                      <div key={slot.id} className="rounded-md border p-2 text-xs space-y-1.5 flex flex-col">
                         <div className="flex justify-between items-start">
                           <span className="font-semibold truncate text-foreground">
-                            {format(new Date(appt.timeslots.start_time), "HH:mm")}
+                            {format(new Date(slot.start_time), "HH:mm")}
                           </span>
                           {statusBadge(appt.status)}
                         </div>
                         
                         {schoolName && (
-                          <div className="flex items-center gap-1">
-                            <span className="font-medium text-primary truncate" title={schoolName}>
-                              {schoolName}
-                            </span>
-                          </div>
+                          <span className="font-medium text-primary truncate" title={schoolName}>
+                            {schoolName}
+                          </span>
                         )}
-                        
-                        <p className="text-muted-foreground font-medium truncate" title={appt.profiles?.name || appt.profiles?.email}>
-                          {appt.profiles?.name || appt.profiles?.email}
-                        </p>
                         
                         <p className="text-muted-foreground/80 line-clamp-2 leading-relaxed" title={appt.description}>
                           {appt.description}
