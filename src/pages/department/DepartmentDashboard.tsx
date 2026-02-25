@@ -95,20 +95,35 @@ export default function DepartmentDashboard() {
       return;
     }
     try {
-      await supabase.from("appointments").update({ status: "cancelled", cancel_reason: reason }).eq("id", appointmentId);
-      await supabase.from("notifications").insert({ user_id: schoolUserId, title: "Agendamento Cancelado", message: `Motivo: ${reason}` });
+      const { error } = await supabase
+        .from("appointments")
+        .update({ status: "cancelled", cancel_reason: reason })
+        .eq("id", appointmentId);
+        
+      if (error) throw error; // Validação estrita do erro
+      
       toast({ title: "Sucesso", description: "Agendamento cancelado." });
       fetchData();
-    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
+    } catch (error: any) { 
+      toast({ title: "Erro na operação", description: error.message, variant: "destructive" }); 
+    }
   };
 
   const handleMarkNoShow = async (appointmentId: string) => {
     if (!window.confirm("Confirmar que a escola faltou ao atendimento?")) return;
     try {
-      await supabase.from("appointments").update({ status: "no-show" }).eq("id", appointmentId);
+      const { error } = await supabase
+        .from("appointments")
+        .update({ status: "no-show" })
+        .eq("id", appointmentId);
+        
+      if (error) throw error; // Validação estrita do erro
+      
       toast({ title: "Falta registrada" });
       fetchData();
-    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
+    } catch (error: any) { 
+      toast({ title: "Erro na operação", description: error.message, variant: "destructive" }); 
+    }
   };
 
   const openCompletionModal = (appointmentId: string) => {
@@ -119,11 +134,19 @@ export default function DepartmentDashboard() {
 
   const submitCompletion = async () => {
     try {
-      await supabase.from("appointments").update({ status: "completed", department_notes: departmentNotes }).eq("id", selectedApptId);
+      const { error } = await supabase
+        .from("appointments")
+        .update({ status: "completed", department_notes: departmentNotes })
+        .eq("id", selectedApptId);
+        
+      if (error) throw error; // Validação estrita do erro
+      
       toast({ title: "Atendimento Concluído" });
       setIsCompleteModalOpen(false);
       fetchData();
-    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
+    } catch (error: any) { 
+      toast({ title: "Erro na operação", description: error.message, variant: "destructive" }); 
+    }
   };
 
   const statusBadge = (status: string) => {
@@ -205,12 +228,11 @@ export default function DepartmentDashboard() {
                   </div>
                 )}
                 
-                {/* 💡 AVALIAÇÃO DA ESCOLA (Estrelas, Cores e Comentários) */}
+                {/* AVALIAÇÃO DA ESCOLA (Estrelas, Cores e Comentários) */}
                 {appt.rating > 0 && (() => {
                   const isFive = appt.rating === 5;
                   const isMedium = appt.rating >= 3 && appt.rating < 5;
                   
-                  // Lógica Dinâmica de Cores
                   const colorClass = isFive 
                     ? "bg-green-50 border-green-500 text-green-900" 
                     : isMedium 
@@ -266,71 +288,4 @@ export default function DepartmentDashboard() {
     <div className="space-y-6 animate-fade-in pb-10">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Painel do Setor</h1>
-        <p className="text-muted-foreground">{departmentName || "Carregando..."}</p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-4">
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Avaliação Média</CardTitle></CardHeader><CardContent className="text-3xl font-bold flex items-center gap-2">{avgRating} <Star className="w-6 h-6 fill-amber-400 text-amber-400"/></CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Concluídos</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-green-600">{completedCount}</CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Taxa de Faltas</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-red-600">{noShowCount}</CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Horários Abertos</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-indigo-600">{stats.availableSlots}</CardContent></Card>
-      </div>
-
-      {/* 💡 ATUALIZAÇÃO: defaultValue alterado para "today" */}
-      <Tabs defaultValue="today" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
-          <TabsTrigger value="pending" className="relative">
-            Pendências {pendingAppointments.length > 0 && <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white">{pendingAppointments.length}</span>}
-          </TabsTrigger>
-          <TabsTrigger value="today">Agenda de Hoje</TabsTrigger>
-          <TabsTrigger value="history">Histórico e Auditoria</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="pending" className="space-y-4">
-          {pendingAppointments.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhuma pendência. Excelente trabalho!</p> : pendingAppointments.map(a => renderAppointmentCard(a, "pending"))}
-        </TabsContent>
-
-        <TabsContent value="today" className="space-y-4">
-          {todayAppointments.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhum agendamento marcado para hoje.</p> : todayAppointments.map(a => renderAppointmentCard(a, "today"))}
-        </TabsContent>
-
-        <TabsContent value="history" className="space-y-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Pesquisar por escola, diretor, pauta ou status..." 
-              className="pl-9 bg-white"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-          {filteredHistory.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhum histórico encontrado para esta pesquisa.</p> : filteredHistory.map(a => renderAppointmentCard(a, "history"))}
-        </TabsContent>
-      </Tabs>
-
-      <Dialog open={isCompleteModalOpen} onOpenChange={setIsCompleteModalOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Concluir Atendimento</DialogTitle>
-            <DialogDescription>A escola será notificada e poderá avaliar o atendimento.</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Anotações do Setor (Ata / Resolução)</label>
-              <Textarea 
-                placeholder="Ex: Documentação entregue. Problema resolvido..."
-                value={departmentNotes}
-                onChange={(e) => setDepartmentNotes(e.target.value)}
-                rows={4}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsCompleteModalOpen(false)}>Cancelar</Button>
-            <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={submitCompletion}>Salvar e Concluir</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
+        <p className="text-muted
