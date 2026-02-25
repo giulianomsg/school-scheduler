@@ -17,11 +17,10 @@ export default function TimeslotsPage() {
   const [timeslots, setTimeslots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados do Formulário (Agora com duração)
   const [date, setDate] = useState("");
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
-  const [duration, setDuration] = useState("30"); // Padrão: 30 minutos
+  const [duration, setDuration] = useState("30");
 
   const fetchTimeslots = async () => {
     if (!user) return;
@@ -32,9 +31,10 @@ export default function TimeslotsPage() {
     if (profile?.department_id) {
       setDepartmentId(profile.department_id);
       
+      // 💡 CORREÇÃO 1: Buscamos a tabela 'appointments' para saber se o horário tem histórico!
       const { data: slots, error } = await supabase
         .from("timeslots")
-        .select("*")
+        .select("*, appointments(id)")
         .eq("department_id", profile.department_id)
         .order("start_time", { ascending: true });
 
@@ -51,9 +51,6 @@ export default function TimeslotsPage() {
     fetchTimeslots();
   }, [user]);
 
-  // ==========================================
-  // MOTOR DE CRIAÇÃO AUTOMÁTICA EM LOTE
-  // ==========================================
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!departmentId || !date || !startTime || !endTime || !duration) return;
@@ -62,7 +59,6 @@ export default function TimeslotsPage() {
     const endDateTime = new Date(`${date}T${endTime}:00`);
     const durationMins = parseInt(duration, 10);
 
-    // Validações Lógicas
     if (startDateTime < new Date()) {
       toast({ title: "Atenção", description: "Não é possível criar horários no passado.", variant: "destructive" });
       return;
@@ -78,14 +74,11 @@ export default function TimeslotsPage() {
       return;
     }
 
-    // Processamento de Fracionamento (Loop)
     let current = startDateTime;
     const slotsToInsert = [];
 
     while (current < endDateTime) {
       const next = new Date(current.getTime() + durationMins * 60000);
-      
-      // Impede a criação de um slot cortado que passe do horário de encerramento do expediente
       if (next > endDateTime) break;
 
       slotsToInsert.push({
@@ -95,7 +88,7 @@ export default function TimeslotsPage() {
         is_available: true,
       });
 
-      current = next; // Avança o relógio
+      current = next;
     }
 
     if (slotsToInsert.length === 0) {
@@ -104,17 +97,10 @@ export default function TimeslotsPage() {
     }
 
     try {
-      // Inserção em massa (Bulk Insert) no Supabase de uma só vez
       const { error } = await supabase.from("timeslots").insert(slotsToInsert);
-
       if (error) throw error;
 
-      toast({ 
-        title: "Agenda Gerada com Sucesso!", 
-        description: `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos.` 
-      });
-      
-      // Limpa as horas (mantemos a data caso queira criar outro período no mesmo dia)
+      toast({ title: "Agenda Gerada com Sucesso!", description: `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos.` });
       setStartTime("");
       setEndTime("");
       fetchTimeslots();
@@ -133,19 +119,20 @@ export default function TimeslotsPage() {
       toast({ title: "Sucesso", description: "Horário apagado." });
       fetchTimeslots();
     } catch (error: any) {
-      toast({ title: "Erro", description: "Não é possível apagar um horário que já possui agendamentos vinculados.", variant: "destructive" });
+      toast({ title: "Erro", description: "Não é possível apagar um horário que já possui histórico.", variant: "destructive" });
     }
   };
 
   const handleBulkDeleteExpired = async () => {
-    if (!window.confirm("Deseja apagar todos os horários expirados que não foram agendados? Esta ação é irreversível.")) return;
+    if (!window.confirm("Deseja apagar os horários expirados órfãos (que nunca tiveram agendamento)? Esta ação é irreversível.")) return;
 
+    // 💡 CORREÇÃO 2: Só apaga os que estão no passado, livres, e SEM histórico (appointments vazio)
     const expiredUnusedIds = timeslots
-      .filter(t => isPast(parseISO(t.start_time)) && t.is_available === true)
+      .filter(t => isPast(parseISO(t.start_time)) && t.is_available === true && (!t.appointments || t.appointments.length === 0))
       .map(t => t.id);
 
     if (expiredUnusedIds.length === 0) {
-      toast({ title: "Atenção", description: "Nenhum horário expirado disponível para limpeza." });
+      toast({ title: "Atenção", description: "Todos os horários expirados possuem histórico no banco de dados e não podem ser apagados por segurança." });
       return;
     }
 
@@ -153,7 +140,7 @@ export default function TimeslotsPage() {
       const { error } = await supabase.from("timeslots").delete().in('id', expiredUnusedIds);
       if (error) throw error;
       
-      toast({ title: "Limpeza concluída", description: `${expiredUnusedIds.length} horários foram apagados com sucesso.` });
+      toast({ title: "Limpeza concluída", description: `${expiredUnusedIds.length} horários ociosos foram apagados com sucesso.` });
       fetchTimeslots();
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -162,7 +149,6 @@ export default function TimeslotsPage() {
 
   const now = new Date();
 
-  // Separação em Futuros e Expirados
   const futureSlots = timeslots.filter(t => new Date(t.start_time) >= now);
   const pastSlots = timeslots.filter(t => new Date(t.start_time) < now);
 
@@ -178,33 +164,42 @@ export default function TimeslotsPage() {
   const futureGrouped = groupByDate(futureSlots);
   const pastGrouped = groupByDate(pastSlots);
 
-  const SlotCard = ({ slot }: { slot: any }) => (
-    <div className={`flex items-center justify-between p-3 border rounded-md mb-2 ${slot.is_available ? 'bg-white' : 'bg-slate-50 border-slate-200 opacity-80'}`}>
-      <div className="flex items-center gap-3">
-        <div className="bg-indigo-50 p-2 rounded-md">
-          <Clock className="w-5 h-5 text-indigo-600" />
-        </div>
-        <div>
-          <p className="font-semibold text-slate-800">
-            {format(new Date(slot.start_time), "HH:mm")} - {format(new Date(slot.end_time), "HH:mm")}
-          </p>
-          <div className="mt-1">
-            {slot.is_available ? (
-              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">Livre</Badge>
-            ) : (
-              <Badge variant="outline" className="text-slate-500 border-slate-200">Reservado</Badge>
-            )}
+  const SlotCard = ({ slot }: { slot: any }) => {
+    // 💡 CORREÇÃO 3: Define se a vaga já teve alguém associado a ela
+    const hasHistory = slot.appointments && slot.appointments.length > 0;
+
+    return (
+      <div className={`flex items-center justify-between p-3 border rounded-md mb-2 ${slot.is_available ? 'bg-white' : 'bg-slate-50 border-slate-200 opacity-80'}`}>
+        <div className="flex items-center gap-3">
+          <div className="bg-indigo-50 p-2 rounded-md">
+            <Clock className="w-5 h-5 text-indigo-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-800">
+              {format(new Date(slot.start_time), "HH:mm")} - {format(new Date(slot.end_time), "HH:mm")}
+            </p>
+            <div className="mt-1">
+              {slot.is_available ? (
+                <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+                  {/* Etiqueta inteligente: avisa o porquê de não poder ser apagado */}
+                  {hasHistory ? "Reciclado (Livre)" : "Livre"}
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-slate-500 border-slate-200">Reservado</Badge>
+              )}
+            </div>
           </div>
         </div>
+        
+        {/* Lixeira só renderiza se estiver Livre E nunca tiver tido agendamentos */}
+        {slot.is_available && !hasHistory && (
+          <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(slot.id)}>
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
       </div>
-      
-      {slot.is_available && (
-        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(slot.id)}>
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      )}
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
