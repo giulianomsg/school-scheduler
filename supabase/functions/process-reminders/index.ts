@@ -1,19 +1,17 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.38.4";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
-  // Lida com CORS
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // INICIALIZA DIRETAMENTE O SUPABASE COM PODERES DE ADMIN (Service Role)
-    // Sem barreiras, sem senhas extras.
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -25,9 +23,7 @@ Deno.serve(async (req) => {
 
     let processed = 0;
 
-    // ==========================================
     // --- Lógica de 30 minutos ---
-    // ==========================================
     const { data: appts30 } = await supabaseAdmin
       .from("appointments")
       .select("id, requester_id, description, timeslot_id, timeslots(start_time, department_id, departments(name))")
@@ -70,9 +66,7 @@ Deno.serve(async (req) => {
       processed++;
     }
 
-    // ==========================================
     // --- Lógica de 10 minutos ---
-    // ==========================================
     const { data: appts10 } = await supabaseAdmin
       .from("appointments")
       .select("id, requester_id, description, timeslot_id, timeslots(start_time, department_id, departments(name))")
@@ -118,8 +112,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("[process-reminders] Error:", error);
-    return new Response(JSON.stringify({ error: "Processamento falhou.", details: error.message }), {
+    return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
