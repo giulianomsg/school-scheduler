@@ -1,6 +1,4 @@
 import { useEffect, useState, useMemo } from "react";
-import { mapErrorMessage } from "@/lib/errorMapper";
-import { sanitizeText } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,17 +94,12 @@ export default function DepartmentDashboard() {
       if (reason !== null) toast({ title: "Justificativa Ausente", variant: "destructive" });
       return;
     }
-    const sanitizedReason = sanitizeText(reason, 500);
-    if (!sanitizedReason) {
-      toast({ title: "Motivo inválido", variant: "destructive" });
-      return;
-    }
     try {
-      await supabase.from("appointments").update({ status: "cancelled", cancel_reason: sanitizedReason }).eq("id", appointmentId);
+      await supabase.from("appointments").update({ status: "cancelled", cancel_reason: reason }).eq("id", appointmentId);
       await supabase.from("notifications").insert({ user_id: schoolUserId, title: "Agendamento Cancelado", message: `Motivo: ${reason}` });
       toast({ title: "Sucesso", description: "Agendamento cancelado." });
       fetchData();
-    } catch (error: any) { toast({ title: "Erro", description: mapErrorMessage(error), variant: "destructive" }); }
+    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
   };
 
   const handleMarkNoShow = async (appointmentId: string) => {
@@ -115,7 +108,7 @@ export default function DepartmentDashboard() {
       await supabase.from("appointments").update({ status: "no-show" }).eq("id", appointmentId);
       toast({ title: "Falta registrada" });
       fetchData();
-    } catch (error: any) { toast({ title: "Erro", description: mapErrorMessage(error), variant: "destructive" }); }
+    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
   };
 
   const openCompletionModal = (appointmentId: string) => {
@@ -126,12 +119,11 @@ export default function DepartmentDashboard() {
 
   const submitCompletion = async () => {
     try {
-      const sanitizedNotes = sanitizeText(departmentNotes, 1000);
-      await supabase.from("appointments").update({ status: "completed", department_notes: sanitizedNotes }).eq("id", selectedApptId);
+      await supabase.from("appointments").update({ status: "completed", department_notes: departmentNotes }).eq("id", selectedApptId);
       toast({ title: "Atendimento Concluído" });
       setIsCompleteModalOpen(false);
       fetchData();
-    } catch (error: any) { toast({ title: "Erro", description: mapErrorMessage(error), variant: "destructive" }); }
+    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
   };
 
   const statusBadge = (status: string) => {

@@ -1,6 +1,4 @@
 import { useEffect, useState } from "react";
-import { mapErrorMessage } from "@/lib/errorMapper";
-import { sanitizeText } from "@/lib/sanitize";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -36,7 +34,7 @@ export default function MyAppointmentsPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      toast({ title: "Erro", description: mapErrorMessage(error), variant: "destructive" });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     } else {
       setAppointments(data || []);
     }
@@ -90,7 +88,7 @@ export default function MyAppointmentsPage() {
       fetchAppointments(); // Recarrega a lista
       
     } catch (error: any) {
-      toast({ title: "Erro ao cancelar", description: mapErrorMessage(error), variant: "destructive" });
+      toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" });
     }
   };
 
@@ -108,12 +106,11 @@ export default function MyAppointmentsPage() {
     }
 
     try {
-      const sanitizedNotes = sanitizeText(schoolNotes, 1000);
       const { error } = await supabase
         .from("appointments")
         .update({ 
           rating: rating,
-          school_notes: sanitizedNotes
+          school_notes: schoolNotes
         })
         .eq("id", selectedAppointment.id);
 
@@ -124,7 +121,7 @@ export default function MyAppointmentsPage() {
       fetchAppointments(); // Atualiza a tela
       
     } catch (error: any) {
-      toast({ title: "Erro", description: mapErrorMessage(error), variant: "destructive" });
+      toast({ title: "Erro", description: error.message, variant: "destructive" });
     }
   };
 
