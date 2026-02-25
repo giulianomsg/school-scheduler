@@ -176,7 +176,7 @@ export default function TimeslotsPage() {
   );
 
   return (
-    <div className="space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
+    <div className="space-y-6 animate-fade-in pb-10 mx-auto">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Gerenciamento de Horários</h1>
         <p className="text-muted-foreground">Disponibilize vagas para as escolas agendarem no seu setor.</p>
