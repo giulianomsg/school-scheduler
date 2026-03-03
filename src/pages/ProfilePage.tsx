@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Save } from "lucide-react";
 
@@ -31,6 +32,8 @@ export default function ProfilePage() {
   const [name, setName] = useState("");
   const [cargo, setCargo] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
+  const [phone, setPhone] = useState("");
+  const [activities, setActivities] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -38,6 +41,8 @@ export default function ProfilePage() {
       setName(profile.name || "");
       setCargo(profile.cargo || "");
       setWhatsapp(profile.whatsapp || "");
+      setPhone(profile.phone || "");
+      setActivities(profile.activities || "");
     }
   }, [profile]);
 
@@ -50,6 +55,8 @@ export default function ProfilePage() {
         name,
         cargo: cargo || null,
         whatsapp: whatsapp || null,
+        phone: profile?.role === "department" ? (phone || null) : null,
+        activities: profile?.role === "department" ? (activities || null) : null,
       })
       .eq("id", user.id);
     if (error) {
@@ -88,6 +95,23 @@ export default function ProfilePage() {
             <Label>WhatsApp</Label>
             <Input value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
           </div>
+          {profile?.role === "department" && (
+            <>
+              <div className="space-y-2">
+                <Label>Telefone (Setor)</Label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
+              </div>
+              <div className="space-y-2">
+                <Label>Minhas Atividades</Label>
+                <Textarea
+                  value={activities}
+                  onChange={(e) => setActivities(e.target.value)}
+                  placeholder="Descreva suas funções diárias..."
+                  className="resize-none h-20"
+                />
+              </div>
+            </>
+          )}
           {profile?.role === "school" && profile?.school_unit_id && (
             <div className="space-y-2">
               <Label>Unidade Escolar</Label>

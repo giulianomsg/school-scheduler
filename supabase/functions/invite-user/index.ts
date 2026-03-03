@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, name, role, school_unit_id, department_id, cargo, whatsapp } = await req.json();
+    const { email, name, role, school_unit_id, department_id, cargo, whatsapp, phone, activities } = await req.json();
 
     if (!email) {
       return new Response(JSON.stringify({ error: "Email is required" }), {
@@ -84,6 +84,8 @@ Deno.serve(async (req) => {
         department_id: department_id || null,
         cargo: cargo || null,
         whatsapp: whatsapp || null,
+        phone: phone || null,
+        activities: activities || null,
       }).eq("id", inviteData.user.id);
     }
 

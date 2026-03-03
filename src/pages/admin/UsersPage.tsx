@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
@@ -43,6 +44,8 @@ export default function UsersPage() {
   const [inviteDepartmentId, setInviteDepartmentId] = useState("");
   const [inviteCargo, setInviteCargo] = useState("");
   const [inviteWhatsapp, setInviteWhatsapp] = useState("");
+  const [invitePhone, setInvitePhone] = useState("");
+  const [inviteActivities, setInviteActivities] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
 
   // Edit state
@@ -52,6 +55,8 @@ export default function UsersPage() {
   const [editRole, setEditRole] = useState<string>("school");
   const [editCargo, setEditCargo] = useState("");
   const [editWhatsapp, setEditWhatsapp] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editActivities, setEditActivities] = useState("");
   const [editSchoolUnitId, setEditSchoolUnitId] = useState("");
   const [editDepartmentId, setEditDepartmentId] = useState("");
   const [editLoading, setEditLoading] = useState(false);
@@ -70,7 +75,7 @@ export default function UsersPage() {
   // Action loading (for suspend/reactivate/links)
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-const fetchProfiles = async () => {
+  const fetchProfiles = async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from("profiles")
@@ -79,10 +84,10 @@ const fetchProfiles = async () => {
 
     // Novo bloco de tratamento de erro
     if (error) {
-      toast({ 
-        title: "Erro ao carregar usuários", 
-        description: error.message, 
-        variant: "destructive" 
+      toast({
+        title: "Erro ao carregar usuários",
+        description: error.message,
+        variant: "destructive"
       });
       console.error("Erro no fetchProfiles:", error);
       setProfiles([]);
@@ -94,7 +99,7 @@ const fetchProfiles = async () => {
       }));
       setProfiles(mapped);
     }
-    
+
     setLoading(false);
   };
 
@@ -125,6 +130,8 @@ const fetchProfiles = async () => {
           department_id: inviteRole === "department" ? (inviteDepartmentId || null) : null,
           cargo: inviteCargo || null,
           whatsapp: inviteWhatsapp || null,
+          phone: inviteRole === "department" ? (invitePhone || null) : null,
+          activities: inviteRole === "department" ? (inviteActivities || null) : null,
         },
       });
       if (error) throw error;
@@ -143,6 +150,7 @@ const fetchProfiles = async () => {
     setInviteEmail(""); setInviteName(""); setInviteRole("school");
     setInviteSchoolUnitId(""); setInviteDepartmentId("");
     setInviteCargo(""); setInviteWhatsapp("");
+    setInvitePhone(""); setInviteActivities("");
   };
 
   // --- Edit ---
@@ -152,6 +160,8 @@ const fetchProfiles = async () => {
     setEditRole(p.role);
     setEditCargo(p.cargo || "");
     setEditWhatsapp(p.whatsapp || "");
+    setEditPhone(p.phone || "");
+    setEditActivities(p.activities || "");
     setEditSchoolUnitId(p.school_unit_id || "");
     setEditDepartmentId((p as any).department_id || "");
     setIsEditOpen(true);
@@ -167,6 +177,8 @@ const fetchProfiles = async () => {
         role: editRole as any,
         cargo: editCargo || null,
         whatsapp: editWhatsapp || null,
+        phone: editRole === "department" ? (editPhone || null) : null,
+        activities: editRole === "department" ? (editActivities || null) : null,
         school_unit_id: editRole === "school" ? (editSchoolUnitId || null) : null,
         department_id: editRole === "department" ? (editDepartmentId || null) : null,
       } as any)
@@ -274,6 +286,8 @@ const fetchProfiles = async () => {
   const renderRoleFields = (role: string, opts: {
     schoolUnitId: string; onSchoolChange: (v: string) => void;
     departmentId: string; onDepartmentChange: (v: string) => void;
+    phone: string; onPhoneChange: (v: string) => void;
+    activities: string; onActivitiesChange: (v: string) => void;
   }) => (
     <>
       {role === "school" && (
@@ -283,10 +297,25 @@ const fetchProfiles = async () => {
         </div>
       )}
       {role === "department" && (
-        <div className="space-y-2">
-          <Label>Setor</Label>
-          <DepartmentCombobox value={opts.departmentId} onChange={opts.onDepartmentChange} />
-        </div>
+        <>
+          <div className="space-y-2">
+            <Label>Setor / Departamento</Label>
+            <DepartmentCombobox value={opts.departmentId} onChange={opts.onDepartmentChange} />
+          </div>
+          <div className="space-y-2">
+            <Label>Telefone (Setor)</Label>
+            <Input value={opts.phone} onChange={(e) => opts.onPhoneChange(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
+          </div>
+          <div className="space-y-2">
+            <Label>Atividades do Funcionário</Label>
+            <Textarea
+              value={opts.activities}
+              onChange={(e) => opts.onActivitiesChange(e.target.value)}
+              placeholder="Descreva as tarefas diárias e responsabilidades..."
+              className="resize-none h-20"
+            />
+          </div>
+        </>
       )}
     </>
   );
@@ -327,6 +356,8 @@ const fetchProfiles = async () => {
               {renderRoleFields(inviteRole, {
                 schoolUnitId: inviteSchoolUnitId, onSchoolChange: setInviteSchoolUnitId,
                 departmentId: inviteDepartmentId, onDepartmentChange: setInviteDepartmentId,
+                phone: invitePhone, onPhoneChange: setInvitePhone,
+                activities: inviteActivities, onActivitiesChange: setInviteActivities,
               })}
               <div className="space-y-2">
                 <Label>Cargo</Label>
@@ -372,6 +403,8 @@ const fetchProfiles = async () => {
             {renderRoleFields(editRole, {
               schoolUnitId: editSchoolUnitId, onSchoolChange: setEditSchoolUnitId,
               departmentId: editDepartmentId, onDepartmentChange: setEditDepartmentId,
+              phone: editPhone, onPhoneChange: setEditPhone,
+              activities: editActivities, onActivitiesChange: setEditActivities,
             })}
             <div className="space-y-2">
               <Label>Cargo</Label>
@@ -459,7 +492,7 @@ const fetchProfiles = async () => {
                       </TableCell>
                       <TableCell>
                         {p.role === "school" ? (p.unidade?.nome_escola || "—") :
-                         p.role === "department" ? (p.departamento?.name || "—") : "—"}
+                          p.role === "department" ? (p.departamento?.name || "—") : "—"}
                       </TableCell>
                       <TableCell>{p.cargo || "—"}</TableCell>
                       <TableCell>
