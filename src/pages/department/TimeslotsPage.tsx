@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CalendarDays, Clock, Trash2, CalendarPlus, AlertCircle, CopyPlus, ShieldAlert } from "lucide-react";
-import { format, isPast, parseISO } from "date-fns";
+import { format, isPast, parseISO, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 
@@ -64,6 +64,15 @@ export default function TimeslotsPage() {
 
     if (startDateTime < new Date()) {
       toast({ title: "Atenção", description: "Não é possível criar horários no passado.", variant: "destructive" });
+      return;
+    }
+
+    if (requires24hAdvance && startDateTime < addHours(new Date(), 24)) {
+      toast({
+        title: "Antecedência Inválida",
+        description: `Para exigir antecedência mínima, as vagas devem iniciar após ${format(addHours(new Date(), 24), "dd/MM/yyyy 'às' HH:mm")}.`,
+        variant: "destructive"
+      });
       return;
     }
 
