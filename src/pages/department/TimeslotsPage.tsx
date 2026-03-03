@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, Clock, Trash2, CalendarPlus, AlertCircle, CopyPlus } from "lucide-react";
+import { CalendarDays, Clock, Trash2, CalendarPlus, AlertCircle, CopyPlus, ShieldAlert } from "lucide-react";
 import { format, isPast, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
@@ -21,16 +23,17 @@ export default function TimeslotsPage() {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [duration, setDuration] = useState("30");
+  const [requires24hAdvance, setRequires24hAdvance] = useState(true);
 
   const fetchTimeslots = async () => {
     if (!user) return;
     setLoading(true);
 
     const { data: profile } = await supabase.from("profiles").select("department_id").eq("id", user.id).single();
-    
+
     if (profile?.department_id) {
       setDepartmentId(profile.department_id);
-      
+
       // 💡 CORREÇÃO 1: Buscamos a tabela 'appointments' para saber se o horário tem histórico!
       const { data: slots, error } = await supabase
         .from("timeslots")
@@ -86,6 +89,7 @@ export default function TimeslotsPage() {
         start_time: current.toISOString(),
         end_time: next.toISOString(),
         is_available: true,
+        requires_24h_advance: requires24hAdvance,
       });
 
       current = next;
@@ -139,7 +143,7 @@ export default function TimeslotsPage() {
     try {
       const { error } = await supabase.from("timeslots").delete().in('id', expiredUnusedIds);
       if (error) throw error;
-      
+
       toast({ title: "Limpeza concluída", description: `${expiredUnusedIds.length} horários ociosos foram apagados com sucesso.` });
       fetchTimeslots();
     } catch (error: any) {
@@ -178,151 +182,168 @@ export default function TimeslotsPage() {
             <p className="font-semibold text-slate-800">
               {format(new Date(slot.start_time), "HH:mm")} - {format(new Date(slot.end_time), "HH:mm")}
             </p>
-            <div className="mt-1">
-              {slot.is_available ? (
-                <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-                  {/* Etiqueta inteligente: avisa o porquê de não poder ser apagado */}
-                  {hasHistory ? "Reciclado (Livre)" : "Livre"}
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-slate-500 border-slate-200">Reservado</Badge>
-              )}
-            </div>
+            {slot.is_available ? (
+              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 mr-2">
+                {/* Etiqueta inteligente: avisa o porquê de não poder ser apagado */}
+                {hasHistory ? "Reciclado (Livre)" : "Livre"}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-slate-500 border-slate-200 mr-2">Reservado</Badge>
+            )}
+            {slot.requires_24h_advance && (
+              <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100 mt-1 inline-flex w-fit">
+                <ShieldAlert className="w-3 h-3 mr-1" />
+                Requer 24h
+              </Badge>
+            )}
           </div>
         </div>
+      </div>
         
-        {/* Lixeira só renderiza se estiver Livre E nunca tiver tido agendamentos */}
-        {slot.is_available && !hasHistory && (
-          <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(slot.id)}>
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        )}
-      </div>
+        {/* Lixeira só renderiza se estiver Livre E nunca tiver tido agendamentos */ }
+    {
+      slot.is_available && !hasHistory && (
+        <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(slot.id)}>
+          <Trash2 className="w-4 h-4" />
+        </Button>
+      )
+    }
+      </div >
     );
-  };
+};
 
-  return (
-    <div className="space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Gerenciamento de Horários</h1>
-        <p className="text-muted-foreground">Crie e disponibilize vagas para as escolas agendarem no seu setor.</p>
-      </div>
+return (
+  <div className="space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
+    <div>
+      <h1 className="text-2xl font-bold text-foreground">Gerenciamento de Horários</h1>
+      <p className="text-muted-foreground">Crie e disponibilize vagas para as escolas agendarem no seu setor.</p>
+    </div>
 
-      <Card className="border-indigo-100 shadow-sm">
-        <CardHeader className="bg-indigo-50/50 pb-4">
-          <CardTitle className="flex items-center gap-2 text-indigo-800">
-            <CalendarPlus className="w-5 h-5" />
-            Adicionar Expediente
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="pt-6">
-          <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Data do Atendimento</label>
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required min={format(now, "yyyy-MM-dd")} className="bg-white" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Hora Início (Ex: 08:00)</label>
-                <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required className="bg-white" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Hora Fim (Ex: 12:00)</label>
-                <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required className="bg-white" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Duração (minutos)</label>
-                <Input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} required className="bg-white" placeholder="Ex: 30" />
-              </div>
+    <Card className="border-indigo-100 shadow-sm">
+      <CardHeader className="bg-indigo-50/50 pb-4">
+        <CardTitle className="flex items-center gap-2 text-indigo-800">
+          <CalendarPlus className="w-5 h-5" />
+          Adicionar Expediente
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6">
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Data do Atendimento</label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required min={format(now, "yyyy-MM-dd")} className="bg-white" />
             </div>
-            <div className="flex justify-end pt-2">
-              <Button type="submit" className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2">
-                <CopyPlus className="w-4 h-4" />
-                Gerar Vagas Automaticamente
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Hora Início (Ex: 08:00)</label>
+              <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required className="bg-white" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Hora Fim (Ex: 12:00)</label>
+              <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required className="bg-white" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700">Duração (minutos)</label>
+              <Input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} required className="bg-white" placeholder="Ex: 30" />
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 pt-2 pb-1 bg-white/50 p-3 rounded border border-indigo-50 w-max">
+            <Switch
+              id="requires-24h"
+              checked={requires24hAdvance}
+              onCheckedChange={setRequires24hAdvance}
+            />
+            <Label htmlFor="requires-24h" className="text-sm text-slate-700 cursor-pointer">
+              Exigir antecedência mínima de 24 horas para escolas agendarem esta vaga
+            </Label>
+          </div>
+          <div className="flex justify-end pt-2">
+            <Button type="submit" className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2">
+              <CopyPlus className="w-4 h-4" />
+              Gerar Vagas Automaticamente
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
+
+    {loading ? (
+      <p className="text-center text-muted-foreground py-8">Carregando horários...</p>
+    ) : (
+      <Tabs defaultValue="future" className="w-full mt-8">
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="future" className="text-md">
+            Próximos Horários
+            <Badge variant="secondary" className="ml-2 bg-indigo-100 text-indigo-700">{futureSlots.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value="past" className="text-md">
+            Histórico Expirado
+            {pastSlots.length > 0 && <Badge variant="secondary" className="ml-2 bg-slate-200 text-slate-700">{pastSlots.length}</Badge>}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="future" className="space-y-6">
+          {Object.keys(futureGrouped).length === 0 ? (
+            <Card>
+              <CardContent className="py-12 flex flex-col items-center justify-center text-center">
+                <CalendarDays className="w-12 h-12 text-slate-200 mb-4" />
+                <p className="text-lg font-medium text-slate-600">Nenhum horário disponível.</p>
+                <p className="text-sm text-slate-500">Crie novas vagas acima para que as escolas possam agendar.</p>
+              </CardContent>
+            </Card>
+          ) : (
+            Object.keys(futureGrouped).sort().map(dateKey => (
+              <div key={dateKey} className="mb-6">
+                <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2 border-b pb-2">
+                  <CalendarDays className="w-5 h-5 text-indigo-500" />
+                  {format(parseISO(dateKey), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {futureGrouped[dateKey].map((slot: any) => (
+                    <SlotCard key={slot.id} slot={slot} />
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="past" className="space-y-6">
+          {pastSlots.length > 0 && (
+            <div className="flex justify-between items-center bg-amber-50 p-4 rounded-lg border border-amber-200">
+              <div className="flex gap-3 items-center">
+                <AlertCircle className="w-6 h-6 text-amber-500" />
+                <div>
+                  <p className="text-sm font-semibold text-amber-800">Cemitério de Horários</p>
+                  <p className="text-xs text-amber-700">Aqui estão os horários que já passaram. Mantenha a sua base limpa.</p>
+                </div>
+              </div>
+              <Button variant="destructive" size="sm" onClick={handleBulkDeleteExpired}>
+                <Trash2 className="w-4 h-4 mr-2" />
+                Limpar Ociosos
               </Button>
             </div>
-          </form>
-        </CardContent>
-      </Card>
+          )}
 
-      {loading ? (
-        <p className="text-center text-muted-foreground py-8">Carregando horários...</p>
-      ) : (
-        <Tabs defaultValue="future" className="w-full mt-8">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
-            <TabsTrigger value="future" className="text-md">
-              Próximos Horários
-              <Badge variant="secondary" className="ml-2 bg-indigo-100 text-indigo-700">{futureSlots.length}</Badge>
-            </TabsTrigger>
-            <TabsTrigger value="past" className="text-md">
-              Histórico Expirado
-              {pastSlots.length > 0 && <Badge variant="secondary" className="ml-2 bg-slate-200 text-slate-700">{pastSlots.length}</Badge>}
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="future" className="space-y-6">
-            {Object.keys(futureGrouped).length === 0 ? (
-              <Card>
-                <CardContent className="py-12 flex flex-col items-center justify-center text-center">
-                  <CalendarDays className="w-12 h-12 text-slate-200 mb-4" />
-                  <p className="text-lg font-medium text-slate-600">Nenhum horário disponível.</p>
-                  <p className="text-sm text-slate-500">Crie novas vagas acima para que as escolas possam agendar.</p>
-                </CardContent>
-              </Card>
-            ) : (
-              Object.keys(futureGrouped).sort().map(dateKey => (
-                <div key={dateKey} className="mb-6">
-                  <h3 className="font-bold text-slate-700 mb-3 flex items-center gap-2 border-b pb-2">
-                    <CalendarDays className="w-5 h-5 text-indigo-500" />
-                    {format(parseISO(dateKey), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {futureGrouped[dateKey].map((slot: any) => (
-                      <SlotCard key={slot.id} slot={slot} />
-                    ))}
-                  </div>
+          {Object.keys(pastGrouped).length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">Nenhum horário expirado.</p>
+          ) : (
+            Object.keys(pastGrouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()).map(dateKey => (
+              <div key={dateKey} className="mb-6 opacity-75">
+                <h3 className="font-bold text-slate-500 mb-3 flex items-center gap-2 border-b pb-2">
+                  <CalendarDays className="w-4 h-4" />
+                  {format(parseISO(dateKey), "dd/MM/yyyy", { locale: ptBR })}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {pastGrouped[dateKey].map((slot: any) => (
+                    <SlotCard key={slot.id} slot={slot} />
+                  ))}
                 </div>
-              ))
-            )}
-          </TabsContent>
-
-          <TabsContent value="past" className="space-y-6">
-            {pastSlots.length > 0 && (
-              <div className="flex justify-between items-center bg-amber-50 p-4 rounded-lg border border-amber-200">
-                <div className="flex gap-3 items-center">
-                  <AlertCircle className="w-6 h-6 text-amber-500" />
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">Cemitério de Horários</p>
-                    <p className="text-xs text-amber-700">Aqui estão os horários que já passaram. Mantenha a sua base limpa.</p>
-                  </div>
-                </div>
-                <Button variant="destructive" size="sm" onClick={handleBulkDeleteExpired}>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Limpar Ociosos
-                </Button>
               </div>
-            )}
-
-            {Object.keys(pastGrouped).length === 0 ? (
-              <p className="text-center text-muted-foreground py-8">Nenhum horário expirado.</p>
-            ) : (
-              Object.keys(pastGrouped).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()).map(dateKey => (
-                <div key={dateKey} className="mb-6 opacity-75">
-                  <h3 className="font-bold text-slate-500 mb-3 flex items-center gap-2 border-b pb-2">
-                    <CalendarDays className="w-4 h-4" />
-                    {format(parseISO(dateKey), "dd/MM/yyyy", { locale: ptBR })}
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {pastGrouped[dateKey].map((slot: any) => (
-                      <SlotCard key={slot.id} slot={slot} />
-                    ))}
-                  </div>
-                </div>
-              ))
-            )}
-          </TabsContent>
-        </Tabs>
-      )}
-    </div>
-  );
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
+    )}
+  </div>
+);
 }
