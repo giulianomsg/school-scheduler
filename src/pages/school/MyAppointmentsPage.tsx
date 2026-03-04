@@ -25,7 +25,7 @@ export default function MyAppointmentsPage() {
   const fetchAppointments = async () => {
     if (!user) return;
     setLoading(true);
-    
+
     // A query abaixo garante que TUDO seja trazido, incluindo as notas novas
     const { data, error } = await supabase
       .from("appointments")
@@ -45,7 +45,7 @@ export default function MyAppointmentsPage() {
     fetchAppointments();
   }, [user]);
 
-const handleCancel = async (id: string, startTime: string) => {
+  const handleCancel = async (id: string, startTime: string) => {
     const start = new Date(startTime);
     const now = new Date();
     const diffHours = (start.getTime() - now.getTime()) / (1000 * 60 * 60);
@@ -59,29 +59,29 @@ const handleCancel = async (id: string, startTime: string) => {
 
     try {
       await supabase.from("appointments").update({ status: "cancelled" }).eq("id", id);
-      
+
       const appt = appointments.find(a => a.id === id);
       if (appt && appt.timeslots?.department_id) {
-         
-         // 💡 BUSCA O NOME DA ESCOLA DO USUÁRIO LOGADO
-         const { data: profile } = await supabase
-           .from("profiles")
-           .select("unidades_escolares(nome_escola)")
-           .eq("id", user?.id)
-           .single();
-         
-         const schoolName = profile?.unidades_escolares?.nome_escola || "Uma escola";
 
-         const { data: deptUsers } = await supabase.from("profiles").select("id").eq("department_id", appt.timeslots.department_id);
-         if (deptUsers && deptUsers.length > 0) {
-             const notes = deptUsers.map(u => ({
-                 user_id: u.id,
-                 title: "Cancelamento de Reunião",
-                 // 💡 MENSAGEM ATUALIZADA: Exibe o nome da escola
-                 message: `A escola ${schoolName} cancelou o atendimento que estava agendado.`
-             }));
-             await supabase.from("notifications").insert(notes);
-         }
+        // 💡 BUSCA O NOME DA ESCOLA DO USUÁRIO LOGADO
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("unidades_escolares(nome_escola)")
+          .eq("id", user?.id)
+          .single();
+
+        const schoolName = profile?.unidades_escolares?.nome_escola || "Uma escola";
+
+        const { data: deptUsers } = await supabase.from("profiles").select("id").eq("department_id", appt.timeslots.department_id);
+        if (deptUsers && deptUsers.length > 0) {
+          const notes = deptUsers.map(u => ({
+            user_id: u.id,
+            title: "Cancelamento de Reunião",
+            // 💡 MENSAGEM ATUALIZADA: Exibe o nome da escola
+            message: `A escola ${schoolName} cancelou o atendimento que estava agendado.`
+          }));
+          await supabase.from("notifications").insert(notes);
+        }
       }
 
       toast({ title: "Sucesso", description: "Agendamento cancelado." });
@@ -107,7 +107,7 @@ const handleCancel = async (id: string, startTime: string) => {
     try {
       const { error } = await supabase
         .from("appointments")
-        .update({ 
+        .update({
           rating: rating,
           school_notes: schoolNotes
         })
@@ -118,7 +118,7 @@ const handleCancel = async (id: string, startTime: string) => {
       toast({ title: "Sucesso", description: "Avaliação salva com sucesso!" });
       setIsRatingModalOpen(false);
       fetchAppointments(); // Atualiza a tela
-      
+
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     }
@@ -137,7 +137,7 @@ const handleCancel = async (id: string, startTime: string) => {
   return (
     <div className="space-y-6 animate-fade-in">
       <h1 className="text-2xl font-bold text-foreground">Meus Agendamentos</h1>
-      
+
       <div className="grid gap-4">
         {loading ? (
           <p className="text-muted-foreground text-center py-8">Carregando...</p>
@@ -160,7 +160,7 @@ const handleCancel = async (id: string, startTime: string) => {
                   <p className="text-sm font-medium">
                     {format(new Date(appt.timeslots.start_time), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
                   </p>
-                  
+
                   {/* Exibição da Nota do Departamento se o status for Concluído */}
                   {appt.status === "completed" && appt.department_notes && (
                     <div className="mt-3 bg-slate-50 p-3 rounded-md border border-slate-100 text-sm">
@@ -181,9 +181,9 @@ const handleCancel = async (id: string, startTime: string) => {
                 <div className="flex flex-col items-end gap-2 justify-start min-w-[160px]">
                   {/* Trava Visual: Oculta Cancelar se o horário já passou */}
                   {appt.status === "active" && new Date(appt.timeslots.start_time) > new Date() && (
-                    <Button 
-                      variant="destructive" 
-                      onClick={() => handleCancel(appt.id, appt.timeslots.start_time, appt.timeslots.department_id)}
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleCancel(appt.id, appt.timeslots.start_time)}
                     >
                       Cancelar
                     </Button>
@@ -227,7 +227,7 @@ const handleCancel = async (id: string, startTime: string) => {
               <p className="text-sm text-muted-foreground">Como você avalia a resolução desta pauta?</p>
               <div className="flex gap-2">
                 {[1, 2, 3, 4, 5].map((star) => (
-                  <Star 
+                  <Star
                     key={star}
                     className={`w-10 h-10 cursor-pointer transition-colors ${star <= rating ? "text-amber-500 fill-current" : "text-slate-200 hover:text-amber-200"}`}
                     onClick={() => setRating(star)}
@@ -237,7 +237,7 @@ const handleCancel = async (id: string, startTime: string) => {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Anotações da Escola (Opcional)</label>
-              <Textarea 
+              <Textarea
                 placeholder="Suas anotações pós-reunião ou feedback adicional..."
                 value={schoolNotes}
                 onChange={(e) => setSchoolNotes(e.target.value)}
