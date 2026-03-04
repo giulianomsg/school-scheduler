@@ -132,36 +132,42 @@ export type Database = {
       }
       profiles: {
         Row: {
+          activities: string | null
           cargo: string | null
           created_at: string
           department_id: string | null
           email: string
           id: string
           name: string
+          phone: string | null
           role: Database["public"]["Enums"]["app_role"]
           school_unit_id: string | null
           updated_at: string
           whatsapp: string | null
         }
         Insert: {
+          activities?: string | null
           cargo?: string | null
           created_at?: string
           department_id?: string | null
           email: string
           id: string
           name?: string
+          phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           school_unit_id?: string | null
           updated_at?: string
           whatsapp?: string | null
         }
         Update: {
+          activities?: string | null
           cargo?: string | null
           created_at?: string
           department_id?: string | null
           email?: string
           id?: string
           name?: string
+          phone?: string | null
           role?: Database["public"]["Enums"]["app_role"]
           school_unit_id?: string | null
           updated_at?: string
@@ -191,6 +197,7 @@ export type Database = {
           end_time: string
           id: string
           is_available: boolean
+          requires_24h_advance: boolean
           start_time: string
         }
         Insert: {
@@ -199,6 +206,7 @@ export type Database = {
           end_time: string
           id?: string
           is_available?: boolean
+          requires_24h_advance?: boolean
           start_time: string
         }
         Update: {
@@ -207,6 +215,7 @@ export type Database = {
           end_time?: string
           id?: string
           is_available?: boolean
+          requires_24h_advance?: boolean
           start_time?: string
         }
         Relationships: [
