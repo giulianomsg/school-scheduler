@@ -11,14 +11,33 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import { Star } from "lucide-react";
 
+interface Appointment {
+  id: string;
+  requester_id: string;
+  status: string;
+  description: string;
+  timeslot_id: string;
+  rating?: number;
+  school_notes?: string;
+  department_notes?: string;
+  cancel_reason?: string;
+  created_at?: string;
+  timeslots: {
+    start_time: string;
+    department_id: string;
+    departments: { name: string; };
+  };
+  [key: string]: unknown; // fallback for missing fields
+}
+
 export default function MyAppointmentsPage() {
   const { user } = useAuth();
-  const [appointments, setAppointments] = useState<any[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Estados do Modal de Avaliação
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [rating, setRating] = useState<number>(0);
   const [schoolNotes, setSchoolNotes] = useState("");
 
@@ -43,6 +62,7 @@ export default function MyAppointmentsPage() {
 
   useEffect(() => {
     fetchAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleCancel = async (id: string, startTime: string) => {
@@ -86,12 +106,12 @@ export default function MyAppointmentsPage() {
 
       toast({ title: "Sucesso", description: "Agendamento cancelado." });
       fetchAppointments();
-    } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } catch (error) {
+      toast({ title: "Erro", description: (error as Error).message, variant: "destructive" });
     }
   };
 
-  const openRatingModal = (appt: any) => {
+  const openRatingModal = (appt: Appointment) => {
     setSelectedAppointment(appt);
     setRating(appt.rating || 0);
     setSchoolNotes(appt.school_notes || "");
@@ -119,8 +139,8 @@ export default function MyAppointmentsPage() {
       setIsRatingModalOpen(false);
       fetchAppointments(); // Atualiza a tela
 
-    } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+    } catch (error) {
+      toast({ title: "Erro", description: (error as Error).message, variant: "destructive" });
     }
   };
 
