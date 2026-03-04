@@ -183,7 +183,7 @@ const handleCancel = async (id: string, startTime: string) => {
                   {appt.status === "active" && new Date(appt.timeslots.start_time) > new Date() && (
                     <Button 
                       variant="destructive" 
-                      onClick={() => handleCancel(appt.id, appt.timeslots.start_time, appt.timeslots.department_id)}
+                      onClick={() => handleCancel(appt.id, appt.timeslots.start_time)}
                     >
                       Cancelar
                     </Button>
