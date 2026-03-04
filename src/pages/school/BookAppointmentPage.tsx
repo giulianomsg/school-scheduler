@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "@/hooks/use-toast";
-import { CalendarDays, Clock, User, Phone, Info } from "lucide-react";
+import { CalendarDays, Clock, User, Phone, Info, ChevronDown, ChevronUp, Users } from "lucide-react";
 import { format, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
@@ -29,6 +29,12 @@ export default function BookAppointmentPage() {
   const [description, setDescription] = useState("");
   const [booking, setBooking] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [expandedActivities, setExpandedActivities] = useState<Record<string, boolean>>({});
+
+  const toggleActivities = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    setExpandedActivities(prev => ({ ...prev, [id]: !prev[id] }));
+  };
 
   useEffect(() => {
     supabase.from("departments").select("*").order("name").then(({ data }) => {
@@ -160,66 +166,82 @@ export default function BookAppointmentPage() {
             <>
               <div className="space-y-4 pt-4 border-t">
                 <div className="flex items-center justify-between">
-                  <Label className="text-lg font-semibold text-primary">Equipe do Setor</Label>
+                  <Label className="text-lg font-semibold text-primary">Atendente (Opcional)</Label>
                   <Badge variant="secondary">{departmentTeam.length} Funcionario(s)</Badge>
                 </div>
                 {departmentTeam.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Nenhum funcionário cadastrado neste setor.</p>
                 ) : (
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {departmentTeam.map((member) => (
-                      <Card key={member.id} className="bg-slate-50/50 border-slate-200">
-                        <CardContent className="p-4 flex flex-col gap-2">
-                          <div className="flex items-start gap-3">
-                            <div className="bg-primary/10 p-2 rounded-full mt-1">
-                              <User className="w-4 h-4 text-primary" />
+                    <Card
+                      className={`cursor-pointer transition-all ${(!requestedAttendantId || requestedAttendantId === 'any') ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'bg-slate-50/50 hover:border-primary/50'}`}
+                      onClick={() => setRequestedAttendantId('any')}
+                    >
+                      <CardContent className="p-4 flex flex-col items-center justify-center text-center gap-2 h-full min-h-[100px]">
+                        <div className="bg-primary/10 p-2 rounded-full">
+                          <Users className="w-5 h-5 text-primary" />
+                        </div>
+                        <p className="font-semibold text-sm">Qualquer Atendente</p>
+                        <p className="text-xs text-muted-foreground">A critério do Setor</p>
+                      </CardContent>
+                    </Card>
+
+                    {departmentTeam.map((member) => {
+                      const isSelected = requestedAttendantId === member.id;
+                      const isExpanded = expandedActivities[member.id];
+                      const hasActivities = member.activities && member.activities !== '<p><br></p>' && member.activities !== '<p></p>';
+
+                      return (
+                        <Card
+                          key={member.id}
+                          className={`cursor-pointer transition-all ${isSelected ? 'border-primary ring-2 ring-primary/20 bg-primary/5' : 'bg-slate-50/50 hover:border-primary/50'}`}
+                          onClick={() => setRequestedAttendantId(member.id)}
+                        >
+                          <CardContent className="p-4 flex flex-col gap-2 relative">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <div className="bg-primary/10 p-2 rounded-full mt-1">
+                                  <User className="w-4 h-4 text-primary" />
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-sm">{member.name || "Sem nome"}</p>
+                                  <p className="text-xs text-muted-foreground">{member.email}</p>
+                                </div>
+                              </div>
+                              {hasActivities && (
+                                <button
+                                  onClick={(e) => toggleActivities(e, member.id)}
+                                  className="p-1 hover:bg-slate-200 rounded-full transition-colors text-slate-500 shrink-0"
+                                  title="Ver atividades"
+                                >
+                                  {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                                </button>
+                              )}
                             </div>
-                            <div>
-                              <p className="font-semibold text-sm">{member.name || "Sem nome"}</p>
-                              <p className="text-xs text-muted-foreground">{member.email}</p>
-                            </div>
-                          </div>
-                          {member.phone && (
-                            <div className="flex items-center gap-2 text-xs text-slate-600 mt-1">
-                              <Phone className="w-3 h-3" />
-                              <span>{member.phone}</span>
-                            </div>
-                          )}
-                          {member.activities && member.activities !== '<p><br></p>' && member.activities !== '<p></p>' && (
-                            <div className="bg-white p-3 text-sm rounded border border-slate-100 mt-1">
-                              <span className="font-semibold text-slate-700 block mb-2">Atividades:</span>
-                              <div
-                                className="prose prose-sm max-w-none text-slate-600 prose-p:leading-snug prose-ul:my-1 prose-li:my-0"
-                                dangerouslySetInnerHTML={{ __html: member.activities }}
-                              />
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+
+                            {member.phone && (
+                              <div className="flex items-center gap-2 text-xs text-slate-600 mt-1">
+                                <Phone className="w-3 h-3" />
+                                <span>{member.phone}</span>
+                              </div>
+                            )}
+
+                            {hasActivities && isExpanded && (
+                              <div className="bg-white p-3 text-sm rounded border border-slate-100 mt-2 animate-in fade-in slide-in-from-top-2">
+                                <span className="font-semibold text-slate-700 block mb-2">Atividades:</span>
+                                <div
+                                  className="prose prose-sm max-w-none text-slate-600 prose-p:leading-snug prose-ul:my-1 prose-li:my-0"
+                                  dangerouslySetInnerHTML={{ __html: member.activities }}
+                                />
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 )}
               </div>
-
-              {departmentTeam.length > 0 && (
-                <div className="space-y-4 pt-4 border-t">
-                  <Label className="text-sm font-semibold text-primary">Atendente Específico (Opcional)</Label>
-                  <Select value={requestedAttendantId} onValueChange={setRequestedAttendantId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Qualquer Atendente / A critério do Setor" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="any">Qualquer Atendente / A critério do Setor</SelectItem>
-                      {departmentTeam.map((member) => (
-                        <SelectItem key={member.id} value={member.id}>{member.name || member.email}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    Ao escolher um atendente específico, o setor tentará designar esta pessoa para o seu atendimento, sujeito à disponibilidade.
-                  </p>
-                </div>
-              )}
 
               <div className="space-y-2 pt-4 border-t">
                 <Label>Horários Disponíveis</Label>
