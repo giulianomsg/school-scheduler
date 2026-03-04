@@ -8,6 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
 import { Save } from "lucide-react";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 
 function SchoolUnitDisplay({ schoolUnitId }: { schoolUnitId: string }) {
   const [name, setName] = useState("");
@@ -101,14 +103,17 @@ export default function ProfilePage() {
                 <Label>Telefone (Setor)</Label>
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
               </div>
-              <div className="space-y-2">
-                <Label>Minhas Atividades</Label>
-                <Textarea
-                  value={activities}
-                  onChange={(e) => setActivities(e.target.value)}
-                  placeholder="Descreva suas funções diárias..."
-                  className="resize-none h-20"
-                />
+              <div className="space-y-2 flex flex-col min-h-[160px]">
+                <Label className="mb-1">Minhas Atividades</Label>
+                <div className="bg-white rounded-md flex-1 pb-4">
+                  <ReactQuill
+                    theme="snow"
+                    value={activities}
+                    onChange={setActivities}
+                    placeholder="Descreva suas funções diárias..."
+                    className="h-[100px]"
+                  />
+                </div>
               </div>
             </>
           )}

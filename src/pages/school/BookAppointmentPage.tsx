@@ -185,8 +185,12 @@ export default function BookAppointmentPage() {
                             </div>
                           )}
                           {member.activities && (
-                            <div className="bg-white p-2 text-xs rounded border border-slate-100 mt-1 text-slate-600">
-                              <span className="font-medium text-slate-700">Atividades:</span> {member.activities}
+                            <div className="bg-white p-3 text-sm rounded border border-slate-100 mt-1">
+                              <span className="font-semibold text-slate-700 block mb-2">Atividades:</span>
+                              <div
+                                className="prose prose-sm max-w-none text-slate-600 prose-p:leading-snug prose-ul:my-1 prose-li:my-0"
+                                dangerouslySetInnerHTML={{ __html: member.activities }}
+                              />
                             </div>
                           )}
                         </CardContent>
@@ -215,10 +219,10 @@ export default function BookAppointmentPage() {
                           onClick={() => !isBlockedBy24hRule && setSelectedSlot(ts.id)}
                           disabled={isBlockedBy24hRule}
                           className={`relative flex items-center justify-between rounded-lg border p-3 text-left transition-colors ${isBlockedBy24hRule
-                              ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200"
-                              : selectedSlot === ts.id
-                                ? "border-primary bg-primary/5 ring-1 ring-primary"
-                                : "hover:border-primary/50"
+                            ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200"
+                            : selectedSlot === ts.id
+                              ? "border-primary bg-primary/5 ring-1 ring-primary"
+                              : "hover:border-primary/50"
                             }`}
                         >
                           <div className="flex items-center gap-3">

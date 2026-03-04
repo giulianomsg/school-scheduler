@@ -12,6 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
+import ReactQuill from "react-quill";
+import "react-quill/dist/quill.snow.css";
 import { Plus, Send, Save, MoreHorizontal, Pencil, KeyRound, Mail, RefreshCw, Ban, CheckCircle, Trash2 } from "lucide-react";
 import SchoolUnitCombobox from "@/components/SchoolUnitCombobox";
 import DepartmentCombobox from "@/components/DepartmentCombobox";
@@ -306,14 +308,17 @@ export default function UsersPage() {
             <Label>Telefone (Setor)</Label>
             <Input value={opts.phone} onChange={(e) => opts.onPhoneChange(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
           </div>
-          <div className="space-y-2">
-            <Label>Atividades do Funcionário</Label>
-            <Textarea
-              value={opts.activities}
-              onChange={(e) => opts.onActivitiesChange(e.target.value)}
-              placeholder="Descreva as tarefas diárias e responsabilidades..."
-              className="resize-none h-20"
-            />
+          <div className="space-y-2 flex flex-col min-h-[160px]">
+            <Label className="mb-1">Atividades do Funcionário</Label>
+            <div className="bg-white rounded-md flex-1">
+              <ReactQuill
+                theme="snow"
+                value={opts.activities}
+                onChange={opts.onActivitiesChange}
+                placeholder="Descreva as tarefas diárias e responsabilidades..."
+                className="h-[100px]"
+              />
+            </div>
           </div>
         </>
       )}
