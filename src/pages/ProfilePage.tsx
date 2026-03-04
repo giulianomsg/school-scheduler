@@ -103,15 +103,14 @@ export default function ProfilePage() {
                 <Label>Telefone (Setor)</Label>
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
               </div>
-              <div className="space-y-2 flex flex-col min-h-[160px]">
+              <div className="space-y-2">
                 <Label className="mb-1">Minhas Atividades</Label>
-                <div className="bg-white rounded-md flex-1 pb-4">
+                <div className="bg-white rounded-md pb-4">
                   <ReactQuill
                     theme="snow"
                     value={activities}
                     onChange={setActivities}
                     placeholder="Descreva suas funções diárias..."
-                    className="h-[100px]"
                   />
                 </div>
               </div>

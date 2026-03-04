@@ -99,6 +99,9 @@
   .glass-card {
     @apply bg-card/80 backdrop-blur-sm border border-border/50 shadow-sm;
   }
+  .ql-editor {
+    @apply min-h-[150px] text-base leading-relaxed;
+  }
 }
 
 #lovable-badge,

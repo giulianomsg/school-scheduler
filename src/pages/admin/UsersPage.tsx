@@ -308,15 +308,14 @@ export default function UsersPage() {
             <Label>Telefone (Setor)</Label>
             <Input value={opts.phone} onChange={(e) => opts.onPhoneChange(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
           </div>
-          <div className="space-y-2 flex flex-col min-h-[160px]">
+          <div className="space-y-2">
             <Label className="mb-1">Atividades do Funcionário</Label>
-            <div className="bg-white rounded-md flex-1">
+            <div className="bg-white rounded-md">
               <ReactQuill
                 theme="snow"
                 value={opts.activities}
                 onChange={opts.onActivitiesChange}
                 placeholder="Descreva as tarefas diárias e responsabilidades..."
-                className="h-[100px]"
               />
             </div>
           </div>

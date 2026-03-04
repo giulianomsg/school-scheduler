@@ -184,7 +184,7 @@ export default function BookAppointmentPage() {
                               <span>{member.phone}</span>
                             </div>
                           )}
-                          {member.activities && (
+                          {member.activities && member.activities !== '<p><br></p>' && member.activities !== '<p></p>' && (
                             <div className="bg-white p-3 text-sm rounded border border-slate-100 mt-1">
                               <span className="font-semibold text-slate-700 block mb-2">Atividades:</span>
                               <div
