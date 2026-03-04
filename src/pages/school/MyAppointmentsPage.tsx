@@ -22,6 +22,7 @@ interface Appointment {
   department_notes?: string;
   cancel_reason?: string;
   created_at?: string;
+  requested_attendant?: { name: string } | null;
   timeslots: {
     start_time: string;
     department_id: string;
@@ -48,7 +49,7 @@ export default function MyAppointmentsPage() {
     // A query abaixo garante que TUDO seja trazido, incluindo as notas novas
     const { data, error } = await supabase
       .from("appointments")
-      .select("*, timeslots!inner(*, departments(name))")
+      .select("*, timeslots!inner(*, departments(name)), requested_attendant:profiles!requested_attendant_id(name)")
       .eq("requester_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -180,6 +181,15 @@ export default function MyAppointmentsPage() {
                   <p className="text-sm font-medium">
                     {format(new Date(appt.timeslots.start_time), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
                   </p>
+
+                  {/* Exibição do Atendente Solicitado (Opcional) */}
+                  {appt.requested_attendant && (
+                    <div className="inline-flex items-center gap-1 mt-1">
+                      <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                        Atendente Solicitado: {appt.requested_attendant.name}
+                      </Badge>
+                    </div>
+                  )}
 
                   {/* Exibição da Nota do Departamento se o status for Concluído */}
                   {appt.status === "completed" && appt.department_notes && (

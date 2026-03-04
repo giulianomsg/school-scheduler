@@ -104,7 +104,8 @@ export default function BookAppointmentPage() {
       timeslot_id: selectedSlot,
       requester_id: user.id,
       description,
-      requested_attendant_id: requestedAttendantId !== "any" ? requestedAttendantId : null,
+      status: "active",
+      requested_attendant_id: requestedAttendantId === "any" || !requestedAttendantId ? null : requestedAttendantId,
     });
     if (error) {
       toast({ title: "Falha no agendamento", description: error.message, variant: "destructive" });
@@ -199,6 +200,26 @@ export default function BookAppointmentPage() {
                   </div>
                 )}
               </div>
+
+              {departmentTeam.length > 0 && (
+                <div className="space-y-4 pt-4 border-t">
+                  <Label className="text-sm font-semibold text-primary">Atendente Específico (Opcional)</Label>
+                  <Select value={requestedAttendantId} onValueChange={setRequestedAttendantId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Qualquer Atendente / A critério do Setor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="any">Qualquer Atendente / A critério do Setor</SelectItem>
+                      {departmentTeam.map((member) => (
+                        <SelectItem key={member.id} value={member.id}>{member.name || member.email}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Ao escolher um atendente específico, o setor tentará designar esta pessoa para o seu atendimento, sujeito à disponibilidade.
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-2 pt-4 border-t">
                 <Label>Horários Disponíveis</Label>

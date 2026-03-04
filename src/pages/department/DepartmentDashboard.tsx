@@ -13,12 +13,40 @@ import { format, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 
+interface DepartmentAppointment {
+  id: string;
+  requester_id: string;
+  status: string;
+  description: string;
+  rating: number;
+  school_notes?: string;
+  department_notes?: string;
+  cancel_reason?: string;
+  requested_attendant?: { name: string } | null;
+  timeslots: {
+    start_time: string;
+    end_time: string;
+    department_id: string;
+  };
+  profiles?: {
+    name: string;
+    email: string;
+    telefone?: string;
+    whatsapp?: string;
+    unidades_escolares?: {
+      nome_escola: string;
+      telefone?: string;
+    };
+  };
+  [key: string]: unknown;
+}
+
 export default function DepartmentDashboard() {
   const { user } = useAuth();
   const [departmentName, setDepartmentName] = useState("");
   const [stats, setStats] = useState({ totalSlots: 0, availableSlots: 0 });
-  const [allAppointments, setAllAppointments] = useState<any[]>([]);
-  
+  const [allAppointments, setAllAppointments] = useState<DepartmentAppointment[]>([]);
+
   // Filtro do Histórico
   const [searchTerm, setSearchTerm] = useState("");
 
@@ -44,10 +72,10 @@ export default function DepartmentDashboard() {
 
     const { data: appts } = await supabase
       .from("appointments")
-      .select("*, timeslots!inner(*), profiles!appointments_requester_id_fkey(*, unidades_escolares(*))")
+      .select("*, timeslots!inner(*), profiles!appointments_requester_id_fkey(*, unidades_escolares(*)), requested_attendant:profiles!requested_attendant_id(name)")
       .eq("timeslots.department_id", dept.id);
 
-    const sortedAppts = (appts || []).sort((a, b) => 
+    const sortedAppts = (appts || []).sort((a, b) =>
       new Date(b.timeslots.start_time).getTime() - new Date(a.timeslots.start_time).getTime()
     );
     setAllAppointments(sortedAppts);
@@ -79,7 +107,7 @@ export default function DepartmentDashboard() {
     const desc = (appt.description || "").toLowerCase();
     const statusText = appt.status.toLowerCase();
     const dateStr = format(new Date(appt.timeslots.start_time), "dd/MM/yyyy HH:mm").toLowerCase();
-    
+
     return schoolName.includes(term) || directorName.includes(term) || desc.includes(term) || statusText.includes(term) || dateStr.includes(term);
   });
 
@@ -96,14 +124,14 @@ export default function DepartmentDashboard() {
     }
     try {
       await supabase.from("appointments").update({ status: "cancelled", cancel_reason: reason }).eq("id", appointmentId);
-      
+
       // 💡 NOTIFICAÇÃO ATUALIZADA: Inclui o nome do Setor
-      await supabase.from("notifications").insert({ 
-        user_id: schoolUserId, 
-        title: `Cancelamento: Setor ${departmentName}`, 
-        message: `O setor ${departmentName} cancelou o seu agendamento. Motivo: ${reason}` 
+      await supabase.from("notifications").insert({
+        user_id: schoolUserId,
+        title: `Cancelamento: Setor ${departmentName}`,
+        message: `O setor ${departmentName} cancelou o seu agendamento. Motivo: ${reason}`
       });
-      
+
       toast({ title: "Sucesso", description: "Agendamento cancelado e escola notificada." });
       fetchData();
     } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
@@ -116,13 +144,13 @@ export default function DepartmentDashboard() {
         .from("appointments")
         .update({ status: "no-show" })
         .eq("id", appointmentId);
-        
+
       if (error) throw error; // Validação estrita do erro
-      
+
       toast({ title: "Falta registrada" });
       fetchData();
-    } catch (error: any) { 
-      toast({ title: "Erro na operação", description: error.message, variant: "destructive" }); 
+    } catch (error: any) {
+      toast({ title: "Erro na operação", description: error.message, variant: "destructive" });
     }
   };
 
@@ -138,14 +166,14 @@ export default function DepartmentDashboard() {
         .from("appointments")
         .update({ status: "completed", department_notes: departmentNotes })
         .eq("id", selectedApptId);
-        
+
       if (error) throw error; // Validação estrita do erro
-      
+
       toast({ title: "Atendimento Concluído" });
       setIsCompleteModalOpen(false);
       fetchData();
-    } catch (error: any) { 
-      toast({ title: "Erro na operação", description: error.message, variant: "destructive" }); 
+    } catch (error: any) {
+      toast({ title: "Erro na operação", description: error.message, variant: "destructive" });
     }
   };
 
@@ -159,7 +187,7 @@ export default function DepartmentDashboard() {
     }
   };
 
-  const renderAppointmentCard = (appt: any, type: "pending" | "today" | "history") => {
+  const renderAppointmentCard = (appt: DepartmentAppointment, type: "pending" | "today" | "history") => {
     const schoolName = appt.profiles?.unidades_escolares?.nome_escola || "Escola não identificada";
     const schoolPhone = appt.profiles?.unidades_escolares?.telefone || "";
     const directorName = appt.profiles?.name || appt.profiles?.email || "Sem nome";
@@ -169,7 +197,7 @@ export default function DepartmentDashboard() {
       <Card key={appt.id} className={`overflow-hidden ${type === "pending" ? "border-l-4 border-l-amber-500" : ""}`}>
         <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between gap-4">
           <div className="space-y-4 flex-1">
-            
+
             {/* Cabeçalho */}
             <div className="flex flex-wrap items-center gap-3">
               <h3 className="font-semibold text-lg flex items-center gap-2 text-slate-800">
@@ -186,11 +214,11 @@ export default function DepartmentDashboard() {
                 <Users className="w-4 h-4 text-slate-400" />
                 Diretor(a): <span className="font-normal text-slate-600">{directorName}</span>
               </div>
-              
+
               {(directorPhone || schoolPhone) && (
                 <div className="flex flex-wrap items-center gap-4 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-4">
                   {directorPhone && (
-                    <a href={`https://wa.me/55${directorPhone.replace(/\D/g,'')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-green-700 hover:underline">
+                    <a href={`https://wa.me/55${directorPhone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-green-700 hover:underline">
                       <Phone className="w-4 h-4" />
                       Dir: {directorPhone}
                     </a>
@@ -204,7 +232,7 @@ export default function DepartmentDashboard() {
                 </div>
               )}
             </div>
-            
+
             {/* Pauta e Data */}
             <div className="space-y-1">
               <p className="text-sm text-slate-700"><strong>Pauta:</strong> {appt.description}</p>
@@ -212,6 +240,16 @@ export default function DepartmentDashboard() {
                 <Clock className="w-4 h-4" />
                 {format(new Date(appt.timeslots.start_time), "dd/MM/yyyy 'às' HH:mm")}
               </p>
+
+              {/* Exibição do Atendente Solicitado (Opcional) */}
+              {appt.requested_attendant && (
+                <div className="mt-2 inline-flex">
+                  <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 gap-1.5 py-1">
+                    <Star className="w-3.5 h-3.5 fill-indigo-700" />
+                    Solicitado atendimento com: {appt.requested_attendant.name}
+                  </Badge>
+                </div>
+              )}
             </div>
 
             {/* Área de Auditoria (Histórico) */}
@@ -227,18 +265,18 @@ export default function DepartmentDashboard() {
                     <strong>Nossa Anotação:</strong> {appt.department_notes}
                   </div>
                 )}
-                
+
                 {/* AVALIAÇÃO DA ESCOLA (Estrelas, Cores e Comentários) */}
                 {appt.rating > 0 && (() => {
                   const isFive = appt.rating === 5;
                   const isMedium = appt.rating >= 3 && appt.rating < 5;
-                  
-                  const colorClass = isFive 
-                    ? "bg-green-50 border-green-500 text-green-900" 
-                    : isMedium 
-                      ? "bg-yellow-50 border-yellow-400 text-yellow-900" 
+
+                  const colorClass = isFive
+                    ? "bg-green-50 border-green-500 text-green-900"
+                    : isMedium
+                      ? "bg-yellow-50 border-yellow-400 text-yellow-900"
                       : "bg-red-50 border-red-500 text-red-900";
-                      
+
                   const starFillClass = isFive ? "fill-green-500 text-green-500" : isMedium ? "fill-yellow-500 text-yellow-500" : "fill-red-500 text-red-500";
                   const starEmptyClass = isFive ? "text-green-200" : isMedium ? "text-yellow-200" : "text-red-200";
 
@@ -248,9 +286,9 @@ export default function DepartmentDashboard() {
                         <strong className="font-semibold text-sm">Avaliação da Escola ({appt.rating}/5):</strong>
                         <div className="flex items-center gap-0.5">
                           {[...Array(5)].map((_, i) => (
-                            <Star 
-                              key={i} 
-                              className={`w-4 h-4 ${i < appt.rating ? starFillClass : starEmptyClass}`} 
+                            <Star
+                              key={i}
+                              className={`w-4 h-4 ${i < appt.rating ? starFillClass : starEmptyClass}`}
                             />
                           ))}
                         </div>
@@ -292,7 +330,7 @@ export default function DepartmentDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Avaliação Média</CardTitle></CardHeader><CardContent className="text-3xl font-bold flex items-center gap-2">{avgRating} <Star className="w-6 h-6 fill-amber-400 text-amber-400"/></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Avaliação Média</CardTitle></CardHeader><CardContent className="text-3xl font-bold flex items-center gap-2">{avgRating} <Star className="w-6 h-6 fill-amber-400 text-amber-400" /></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Concluídos</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-green-600">{completedCount}</CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Taxa de Faltas</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-red-600">{noShowCount}</CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Horários Abertos</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-indigo-600">{stats.availableSlots}</CardContent></Card>
@@ -318,8 +356,8 @@ export default function DepartmentDashboard() {
         <TabsContent value="history" className="space-y-4">
           <div className="relative">
             <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input 
-              placeholder="Pesquisar por escola, diretor, pauta ou status..." 
+            <Input
+              placeholder="Pesquisar por escola, diretor, pauta ou status..."
               className="pl-9 bg-white"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -338,7 +376,7 @@ export default function DepartmentDashboard() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Anotações do Setor (Ata / Resolução)</label>
-              <Textarea 
+              <Textarea
                 placeholder="Ex: Documentação entregue. Problema resolvido..."
                 value={departmentNotes}
                 onChange={(e) => setDepartmentNotes(e.target.value)}
