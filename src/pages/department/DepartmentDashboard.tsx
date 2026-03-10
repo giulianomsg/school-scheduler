@@ -17,8 +17,11 @@ interface DepartmentAppointment {
   id: string;
   requester_id: string;
   status: string;
-  description: string;
   rating: number;
+  rating_cordialidade?: number;
+  rating_comunicacao?: number;
+  rating_organizacao?: number;
+  rating_impressao?: number;
   school_notes?: string;
   department_notes?: string;
   cancel_reason?: string;
@@ -280,10 +283,24 @@ export default function DepartmentDashboard() {
                   const starFillClass = isFive ? "fill-green-500 text-green-500" : isMedium ? "fill-yellow-500 text-yellow-500" : "fill-red-500 text-red-500";
                   const starEmptyClass = isFive ? "text-green-200" : isMedium ? "text-yellow-200" : "text-red-200";
 
+                  const renderStarRow = (label: string, value?: number) => {
+                    if (!value) return null;
+                    return (
+                      <div className="flex items-center justify-between text-xs py-0.5 border-b border-white/40 last:border-0">
+                        <span className="opacity-80">{label}:</span>
+                        <div className="flex items-center gap-0.5">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className={`w-3 h-3 ${i < value ? starFillClass : starEmptyClass}`} />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  };
+
                   return (
                     <div className={`mt-2 p-3 rounded-md border-l-4 border-y border-r flex flex-col gap-2 ${colorClass}`}>
                       <div className="flex items-center gap-2">
-                        <strong className="font-semibold text-sm">Avaliação da Escola ({appt.rating}/5):</strong>
+                        <strong className="font-semibold text-sm">Avaliação da Escola (Média {appt.rating}/5):</strong>
                         <div className="flex items-center gap-0.5">
                           {[...Array(5)].map((_, i) => (
                             <Star
@@ -293,6 +310,17 @@ export default function DepartmentDashboard() {
                           ))}
                         </div>
                       </div>
+
+                      {/* Critérios Específicos Adicionados Aqui */}
+                      {(appt.rating_cordialidade || appt.rating_comunicacao || appt.rating_organizacao || appt.rating_impressao) && (
+                        <div className="bg-white/40 p-2 rounded-sm mb-1 mt-1">
+                          {renderStarRow("Cordialidade e Postura", appt.rating_cordialidade)}
+                          {renderStarRow("Comunicação", appt.rating_comunicacao)}
+                          {renderStarRow("Organização e Eficiência", appt.rating_organizacao)}
+                          {renderStarRow("Impressão Geral", appt.rating_impressao)}
+                        </div>
+                      )}
+
                       <div className="text-sm">
                         <span className="italic">"{appt.school_notes || "Nenhum comentário preenchido."}"</span>
                       </div>

@@ -24,6 +24,10 @@ export type Database = {
           notified_10min: boolean
           notified_30min: boolean
           rating: number | null
+          rating_cordialidade: number | null
+          rating_comunicacao: number | null
+          rating_organizacao: number | null
+          rating_impressao: number | null
           requested_attendant_id: string | null
           requester_id: string
           school_notes: string | null
@@ -39,6 +43,10 @@ export type Database = {
           notified_10min?: boolean
           notified_30min?: boolean
           rating?: number | null
+          rating_cordialidade?: number | null
+          rating_comunicacao?: number | null
+          rating_organizacao?: number | null
+          rating_impressao?: number | null
           requested_attendant_id?: string | null
           requester_id: string
           school_notes?: string | null
@@ -54,6 +62,10 @@ export type Database = {
           notified_10min?: boolean
           notified_30min?: boolean
           rating?: number | null
+          rating_cordialidade?: number | null
+          rating_comunicacao?: number | null
+          rating_organizacao?: number | null
+          rating_impressao?: number | null
           requested_attendant_id?: string | null
           requester_id?: string
           school_notes?: string | null

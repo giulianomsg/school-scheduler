@@ -16,8 +16,11 @@ interface Appointment {
   requester_id: string;
   status: string;
   description: string;
-  timeslot_id: string;
   rating?: number;
+  rating_cordialidade?: number;
+  rating_comunicacao?: number;
+  rating_organizacao?: number;
+  rating_impressao?: number;
   school_notes?: string;
   department_notes?: string;
   cancel_reason?: string;
@@ -36,10 +39,15 @@ export default function MyAppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados do Modal de Avaliação
   const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [rating, setRating] = useState<number>(0);
+
+  // Specific Ratings
+  const [ratingCordialidade, setRatingCordialidade] = useState<number>(0);
+  const [ratingComunicacao, setRatingComunicacao] = useState<number>(0);
+  const [ratingOrganizacao, setRatingOrganizacao] = useState<number>(0);
+  const [ratingImpressao, setRatingImpressao] = useState<number>(0);
+
   const [schoolNotes, setSchoolNotes] = useState("");
 
   const fetchAppointments = async () => {
@@ -114,22 +122,34 @@ export default function MyAppointmentsPage() {
 
   const openRatingModal = (appt: Appointment) => {
     setSelectedAppointment(appt);
-    setRating(appt.rating || 0);
+    setRatingCordialidade(appt.rating_cordialidade || 0);
+    setRatingComunicacao(appt.rating_comunicacao || 0);
+    setRatingOrganizacao(appt.rating_organizacao || 0);
+    setRatingImpressao(appt.rating_impressao || 0);
     setSchoolNotes(appt.school_notes || "");
     setIsRatingModalOpen(true);
   };
 
   const submitRating = async () => {
-    if (rating === 0) {
-      toast({ title: "Atenção", description: "Selecione pelo menos 1 estrela para avaliar.", variant: "destructive" });
+    if (ratingCordialidade === 0 || ratingComunicacao === 0 || ratingOrganizacao === 0 || ratingImpressao === 0) {
+      toast({ title: "Atenção", description: "Por favor, responda a todas as 4 perguntas de avaliação.", variant: "destructive" });
       return;
     }
 
     try {
+      // Calculate overall average
+      const averageRating = (ratingCordialidade + ratingComunicacao + ratingOrganizacao + ratingImpressao) / 4;
+      // Round to nearest whole number so we can store it as smallint safely (or integer value for display)
+      const roundedRating = Math.round(averageRating);
+
       const { error } = await supabase
         .from("appointments")
         .update({
-          rating: rating,
+          rating: roundedRating,
+          rating_cordialidade: ratingCordialidade,
+          rating_comunicacao: ratingComunicacao,
+          rating_organizacao: ratingOrganizacao,
+          rating_impressao: ratingImpressao,
           school_notes: schoolNotes
         })
         .eq("id", selectedAppointment.id);
@@ -252,16 +272,126 @@ export default function MyAppointmentsPage() {
           <DialogHeader>
             <DialogTitle>Avaliar Atendimento</DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 py-4">
-            <div className="flex flex-col items-center gap-3">
-              <p className="text-sm text-muted-foreground">Como você avalia a resolução desta pauta?</p>
-              <div className="flex gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star
-                    key={star}
-                    className={`w-10 h-10 cursor-pointer transition-colors ${star <= rating ? "text-amber-500 fill-current" : "text-slate-200 hover:text-amber-200"}`}
-                    onClick={() => setRating(star)}
-                  />
+          <div className="space-y-6 py-4 max-h-[60vh] overflow-y-auto px-2">
+
+            {/* 1 - Cordialidade e Postura */}
+            <div className="flex flex-col gap-2">
+              <h4 className="font-semibold text-sm">1. Cordialidade e Postura</h4>
+              <ul className="text-xs text-muted-foreground list-disc pl-4 mb-2">
+                <li>O atendimento foi realizado com cordialidade e respeito.</li>
+                <li>O(a) servidor(a) que lhe atendeu, demonstrou postura profissional durante todo o atendimento.</li>
+              </ul>
+              <div className="flex flex-col gap-1 text-sm pl-2">
+                {[
+                  { value: 5, label: "Excelente" },
+                  { value: 4, label: "Bom" },
+                  { value: 3, label: "Regular" },
+                  { value: 2, label: "Ruim" },
+                  { value: 1, label: "Péssimo" },
+                ].map((option) => (
+                  <label key={`cordialidade-${option.value}`} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="cordialidade"
+                      value={option.value}
+                      checked={ratingCordialidade === option.value}
+                      onChange={() => setRatingCordialidade(option.value)}
+                      className="accent-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 2 - Comunicação */}
+            <div className="flex flex-col gap-2">
+              <h4 className="font-semibold text-sm">2. Comunicação</h4>
+              <ul className="text-xs text-muted-foreground list-disc pl-4 mb-2">
+                <li>As informações foram transmitidas de forma clara e objetiva.</li>
+                <li>O(a) servidor(a) que lhe atendeu, demonstrou atenção e escuta ativa durante o atendimento.</li>
+                <li>As orientações foram apresentadas de maneira compreensível.</li>
+              </ul>
+              <div className="flex flex-col gap-1 text-sm pl-2">
+                {[
+                  { value: 5, label: "Excelente" },
+                  { value: 4, label: "Bom" },
+                  { value: 3, label: "Regular" },
+                  { value: 2, label: "Ruim" },
+                  { value: 1, label: "Péssimo" },
+                ].map((option) => (
+                  <label key={`comunicacao-${option.value}`} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="comunicacao"
+                      value={option.value}
+                      checked={ratingComunicacao === option.value}
+                      onChange={() => setRatingComunicacao(option.value)}
+                      className="accent-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 3 - Organização e Eficiência no Atendimento */}
+            <div className="flex flex-col gap-2">
+              <h4 className="font-semibold text-sm">3. Organização e Eficiência no Atendimento</h4>
+              <ul className="text-xs text-muted-foreground list-disc pl-4 mb-2">
+                <li>O atendimento ocorreu de forma organizada.</li>
+                <li>O tempo dedicado ao atendimento foi adequado.</li>
+                <li>O(a) servidor(a) que lhe atendeu, demonstrou preparo no momento do atendimento.</li>
+              </ul>
+              <div className="flex flex-col gap-1 text-sm pl-2">
+                {[
+                  { value: 5, label: "Excelente" },
+                  { value: 4, label: "Bom" },
+                  { value: 3, label: "Regular" },
+                  { value: 2, label: "Ruim" },
+                  { value: 1, label: "Péssimo" },
+                ].map((option) => (
+                  <label key={`organizacao-${option.value}`} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="organizacao"
+                      value={option.value}
+                      checked={ratingOrganizacao === option.value}
+                      onChange={() => setRatingOrganizacao(option.value)}
+                      className="accent-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* 4 - Impressão Geral */}
+            <div className="flex flex-col gap-2">
+              <h4 className="font-semibold text-sm">4. Impressão Geral</h4>
+              <ul className="text-xs text-muted-foreground list-disc pl-4 mb-2">
+                <li>Senti-me respeitado(a) durante o atendimento.</li>
+                <li>Considero o atendimento recebido satisfatório.</li>
+              </ul>
+              <div className="flex flex-col gap-1 text-sm pl-2">
+                {[
+                  { value: 5, label: "Excelente" },
+                  { value: 4, label: "Bom" },
+                  { value: 3, label: "Regular" },
+                  { value: 2, label: "Ruim" },
+                  { value: 1, label: "Péssimo" },
+                ].map((option) => (
+                  <label key={`impressao-${option.value}`} className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="impressao"
+                      value={option.value}
+                      checked={ratingImpressao === option.value}
+                      onChange={() => setRatingImpressao(option.value)}
+                      className="accent-amber-500 w-4 h-4 cursor-pointer"
+                    />
+                    {option.label}
+                  </label>
                 ))}
               </div>
             </div>

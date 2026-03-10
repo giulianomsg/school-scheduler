@@ -16,13 +16,13 @@ export default function AdminDashboard() {
 
   const fetchData = async () => {
     setLoading(true);
-    
+
     // 1. Busca estatísticas globais
     const [schoolsRes, deptsRes] = await Promise.all([
       supabase.from("unidades_escolares").select("id", { count: "exact", head: true }),
       supabase.from("departments").select("id", { count: "exact", head: true })
     ]);
-    
+
     setStats({ schools: schoolsRes.count || 0, departments: deptsRes.count || 0 });
 
     // 2. Busca TODOS os agendamentos com os relacionamentos complexos (Setor + Escola)
@@ -30,7 +30,7 @@ export default function AdminDashboard() {
       .from("appointments")
       .select("*, timeslots!inner(*, departments(name)), profiles!appointments_requester_id_fkey(*, unidades_escolares(*))");
 
-    const sortedAppts = (appts || []).sort((a, b) => 
+    const sortedAppts = (appts || []).sort((a, b) =>
       new Date(b.timeslots.start_time).getTime() - new Date(a.timeslots.start_time).getTime()
     );
     setAllAppointments(sortedAppts);
@@ -66,7 +66,7 @@ export default function AdminDashboard() {
     const desc = (appt.description || "").toLowerCase();
     const statusText = appt.status.toLowerCase();
     const dateStr = format(new Date(appt.timeslots.start_time), "dd/MM/yyyy HH:mm").toLowerCase();
-    
+
     return schoolName.includes(term) || directorName.includes(term) || deptName.includes(term) || desc.includes(term) || statusText.includes(term) || dateStr.includes(term);
   });
 
@@ -95,7 +95,7 @@ export default function AdminDashboard() {
     return (
       <Card key={appt.id} className={`overflow-hidden ${type === "pending" ? "border-l-4 border-l-amber-500" : ""}`}>
         <CardContent className="p-4 sm:p-6 flex flex-col gap-4">
-          
+
           {/* Identificação do Setor e Status */}
           <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
             <Badge variant="secondary" className="bg-indigo-100 text-indigo-800 flex items-center gap-1.5 px-3 py-1 text-sm">
@@ -135,7 +135,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
-            
+
             {/* Pauta e Data */}
             <div className="space-y-1">
               <p className="text-sm text-slate-700"><strong>Pauta:</strong> {appt.description}</p>
@@ -158,7 +158,7 @@ export default function AdminDashboard() {
                     <strong>Anotação do Setor:</strong> {appt.department_notes}
                   </div>
                 )}
-                
+
                 {appt.rating > 0 && (() => {
                   const isFive = appt.rating === 5;
                   const isMedium = appt.rating >= 3 && appt.rating < 5;
@@ -166,16 +166,41 @@ export default function AdminDashboard() {
                   const starFillClass = isFive ? "fill-green-500 text-green-500" : isMedium ? "fill-yellow-500 text-yellow-500" : "fill-red-500 text-red-500";
                   const starEmptyClass = isFive ? "text-green-200" : isMedium ? "text-yellow-200" : "text-red-200";
 
+                  const renderStarRow = (label: string, value?: number) => {
+                    if (!value) return null;
+                    return (
+                      <div className="flex items-center justify-between text-xs py-0.5 border-b border-white/40 last:border-0">
+                        <span className="opacity-80">{label}:</span>
+                        <div className="flex items-center gap-0.5">
+                          {[...Array(5)].map((_, i) => (
+                            <Star key={i} className={`w-3 h-3 ${i < value ? starFillClass : starEmptyClass}`} />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  };
+
                   return (
                     <div className={`mt-2 p-3 rounded-md border-l-4 border-y border-r flex flex-col gap-2 ${colorClass}`}>
                       <div className="flex items-center gap-2">
-                        <strong className="font-semibold text-sm">Avaliação da Escola ({appt.rating}/5):</strong>
+                        <strong className="font-semibold text-sm">Avaliação da Escola (Média {appt.rating}/5):</strong>
                         <div className="flex items-center gap-0.5">
                           {[...Array(5)].map((_, i) => (
                             <Star key={i} className={`w-4 h-4 ${i < appt.rating ? starFillClass : starEmptyClass}`} />
                           ))}
                         </div>
                       </div>
+
+                      {/* Critérios Específicos Adicionados Aqui */}
+                      {(appt.rating_cordialidade || appt.rating_comunicacao || appt.rating_organizacao || appt.rating_impressao) && (
+                        <div className="bg-white/40 p-2 rounded-sm mb-1 mt-1">
+                          {renderStarRow("Cordialidade e Postura", appt.rating_cordialidade)}
+                          {renderStarRow("Comunicação", appt.rating_comunicacao)}
+                          {renderStarRow("Organização e Eficiência", appt.rating_organizacao)}
+                          {renderStarRow("Impressão Geral", appt.rating_impressao)}
+                        </div>
+                      )}
+
                       <div className="text-sm">
                         <span className="italic">"{appt.school_notes || "Nenhum comentário preenchido."}"</span>
                       </div>
@@ -198,7 +223,7 @@ export default function AdminDashboard() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-4">
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">NPS Global</CardTitle></CardHeader><CardContent className="text-3xl font-bold flex items-center gap-2">{avgRating} <Star className="w-6 h-6 fill-amber-400 text-amber-400"/></CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">NPS Global</CardTitle></CardHeader><CardContent className="text-3xl font-bold flex items-center gap-2">{avgRating} <Star className="w-6 h-6 fill-amber-400 text-amber-400" /></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Faltas Totais</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-red-600">{noShowCount}</CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Escolas na Rede</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-blue-600">{stats.schools}</CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Setores Ativos</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-indigo-600">{stats.departments}</CardContent></Card>
@@ -227,8 +252,8 @@ export default function AdminDashboard() {
           <TabsContent value="history" className="space-y-4">
             <div className="relative">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input 
-                placeholder="Pesquisar por escola, diretor, setor, pauta ou status..." 
+              <Input
+                placeholder="Pesquisar por escola, diretor, setor, pauta ou status..."
                 className="pl-9 bg-white"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
