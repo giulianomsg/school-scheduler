@@ -22,13 +22,12 @@ interface Appointment {
   department_notes?: string;
   cancel_reason?: string;
   created_at?: string;
-  requested_attendant?: { name: string } | null;
   timeslots: {
     start_time: string;
     department_id: string;
     departments: { name: string; };
   };
-  [key: string]: unknown; // fallback for missing fields
+  [key: string]: unknown;
 }
 
 export default function MyAppointmentsPage() {
