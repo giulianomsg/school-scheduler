@@ -75,7 +75,7 @@ export default function DepartmentDashboard() {
 
     const { data: appts } = await supabase
       .from("appointments")
-      .select("*, timeslots!inner(*), profiles!appointments_requester_id_fkey(*, unidades_escolares(*)), requested_attendant:profiles!requested_attendant_id(name)")
+      .select("*, timeslots!inner(*), profiles!appointments_requester_id_fkey(*, unidades_escolares(*))")
       .eq("timeslots.department_id", dept.id);
 
     const sortedAppts = (appts || []).sort((a, b) =>
@@ -107,7 +107,7 @@ export default function DepartmentDashboard() {
     const term = searchTerm.toLowerCase();
     const schoolName = (appt.profiles?.unidades_escolares?.nome_escola || "").toLowerCase();
     const directorName = (appt.profiles?.name || appt.profiles?.email || "").toLowerCase();
-    const desc = (appt.description || "").toLowerCase();
+    const desc = (String(appt.description || "")).toLowerCase();
     const statusText = appt.status.toLowerCase();
     const dateStr = format(new Date(appt.timeslots.start_time), "dd/MM/yyyy HH:mm").toLowerCase();
 
@@ -238,7 +238,7 @@ export default function DepartmentDashboard() {
 
             {/* Pauta e Data */}
             <div className="space-y-1">
-              <p className="text-sm text-slate-700"><strong>Pauta:</strong> {appt.description}</p>
+              <p className="text-sm text-slate-700"><strong>Pauta:</strong> {String(appt.description || "")}</p>
               <p className="text-sm font-semibold flex items-center gap-2 text-indigo-700">
                 <Clock className="w-4 h-4" />
                 {format(new Date(appt.timeslots.start_time), "dd/MM/yyyy 'às' HH:mm")}

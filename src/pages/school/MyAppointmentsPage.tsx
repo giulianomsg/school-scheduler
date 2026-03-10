@@ -57,7 +57,7 @@ export default function MyAppointmentsPage() {
     // A query abaixo garante que TUDO seja trazido, incluindo as notas novas
     const { data, error } = await supabase
       .from("appointments")
-      .select("*, timeslots!inner(*, departments(name)), requested_attendant:profiles!requested_attendant_id(name)")
+      .select("*, timeslots!inner(*, departments(name))")
       .eq("requester_id", user.id)
       .order("created_at", { ascending: false });
 
