@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import react from "@vitejs/plugin-react";
+import react from "@vitejs/plugin-react-swc";
 import path from "path";
 
 // https://vitejs.dev/config/
@@ -11,19 +11,14 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  plugins: [
-    react({
-      jsxRuntime: 'automatic',
-    }),
-  ],
+  plugins: [react()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },
-    dedupe: ["react", "react-dom", "react/jsx-runtime", "@tanstack/react-query"],
+    dedupe: ["react", "react-dom", "@tanstack/react-query"],
   },
   optimizeDeps: {
-    include: ["react", "react-dom", "react/jsx-runtime", "@tanstack/react-query"],
-    force: true,
+    include: ["react", "react-dom", "@tanstack/react-query"],
   },
 }));
