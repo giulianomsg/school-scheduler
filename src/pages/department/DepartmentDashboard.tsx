@@ -107,7 +107,7 @@ export default function DepartmentDashboard() {
     const term = searchTerm.toLowerCase();
     const schoolName = (appt.profiles?.unidades_escolares?.nome_escola || "").toLowerCase();
     const directorName = (appt.profiles?.name || appt.profiles?.email || "").toLowerCase();
-    const desc = (appt.description || "").toLowerCase();
+    const desc = (String(appt.description || "")).toLowerCase();
     const statusText = appt.status.toLowerCase();
     const dateStr = format(new Date(appt.timeslots.start_time), "dd/MM/yyyy HH:mm").toLowerCase();
 
