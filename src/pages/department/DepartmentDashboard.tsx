@@ -75,7 +75,7 @@ export default function DepartmentDashboard() {
 
     const { data: appts } = await supabase
       .from("appointments")
-      .select("*, timeslots!inner(*), profiles!appointments_requester_id_fkey(*, unidades_escolares(*)), requested_attendant:profiles!requested_attendant_id(name)")
+      .select("*, timeslots!inner(*), profiles!appointments_requester_id_fkey(*, unidades_escolares(*))")
       .eq("timeslots.department_id", dept.id);
 
     const sortedAppts = (appts || []).sort((a, b) =>
