@@ -238,7 +238,7 @@ export default function DepartmentDashboard() {
 
             {/* Pauta e Data */}
             <div className="space-y-1">
-              <p className="text-sm text-slate-700"><strong>Pauta:</strong> {appt.description}</p>
+              <p className="text-sm text-slate-700"><strong>Pauta:</strong> {String(appt.description || "")}</p>
               <p className="text-sm font-semibold flex items-center gap-2 text-indigo-700">
                 <Clock className="w-4 h-4" />
                 {format(new Date(appt.timeslots.start_time), "dd/MM/yyyy 'às' HH:mm")}
