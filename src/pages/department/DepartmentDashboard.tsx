@@ -240,15 +240,6 @@ export default function DepartmentDashboard() {
                 {format(new Date(appt.timeslots.start_time), "dd/MM/yyyy 'às' HH:mm")}
               </p>
 
-              {/* Exibição do Atendente Solicitado (Opcional) */}
-              {appt.requested_attendant && (
-                <div className="mt-2 inline-flex">
-                  <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200 gap-1.5 py-1">
-                    <Star className="w-3.5 h-3.5 fill-indigo-700" />
-                    Solicitado atendimento com: {appt.requested_attendant.name}
-                  </Badge>
-                </div>
-              )}
             </div>
 
             {/* Área de Auditoria (Histórico) */}

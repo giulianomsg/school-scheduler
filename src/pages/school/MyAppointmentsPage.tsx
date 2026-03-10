@@ -182,13 +182,6 @@ export default function MyAppointmentsPage() {
                   </p>
 
                   {/* Exibição do Atendente Solicitado (Opcional) */}
-                  {appt.requested_attendant && (
-                    <div className="inline-flex items-center gap-1 mt-1">
-                      <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
-                        Atendente Solicitado: {appt.requested_attendant.name}
-                      </Badge>
-                    </div>
-                  )}
 
                   {/* Exibição da Nota do Departamento se o status for Concluído */}
                   {appt.status === "completed" && appt.department_notes && (
