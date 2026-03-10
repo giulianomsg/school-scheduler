@@ -98,6 +98,10 @@ export default function DepartmentDashboard() {
     (appt) => isToday(new Date(appt.timeslots.start_time))
   );
 
+  const upcomingAppointments = allAppointments.filter(
+    (appt) => appt.status === "active" && new Date(appt.timeslots.start_time) > now && !isToday(new Date(appt.timeslots.start_time))
+  );
+
   const historyAppointments = allAppointments.filter(
     (appt) => ["completed", "cancelled", "no-show"].includes(appt.status)
   );
@@ -190,7 +194,7 @@ export default function DepartmentDashboard() {
     }
   };
 
-  const renderAppointmentCard = (appt: DepartmentAppointment, type: "pending" | "today" | "history") => {
+  const renderAppointmentCard = (appt: DepartmentAppointment, type: "pending" | "today" | "upcoming" | "history") => {
     const schoolName = appt.profiles?.unidades_escolares?.nome_escola || "Escola não identificada";
     const schoolPhone = appt.profiles?.unidades_escolares?.telefone || "";
     const directorName = appt.profiles?.name || appt.profiles?.email || "Sem nome";
@@ -365,12 +369,13 @@ export default function DepartmentDashboard() {
       </div>
 
       <Tabs defaultValue="today" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 mb-6">
           <TabsTrigger value="pending" className="relative">
             Pendências {pendingAppointments.length > 0 && <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white">{pendingAppointments.length}</span>}
           </TabsTrigger>
           <TabsTrigger value="today">Agenda de Hoje</TabsTrigger>
-          <TabsTrigger value="history">Histórico e Auditoria</TabsTrigger>
+          <TabsTrigger value="upcoming">Próximos</TabsTrigger>
+          <TabsTrigger value="history">Histórico</TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-4">
@@ -379,6 +384,10 @@ export default function DepartmentDashboard() {
 
         <TabsContent value="today" className="space-y-4">
           {todayAppointments.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhum agendamento marcado para hoje.</p> : todayAppointments.map(a => renderAppointmentCard(a, "today"))}
+        </TabsContent>
+
+        <TabsContent value="upcoming" className="space-y-4">
+          {upcomingAppointments.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhum agendamento futuro encontrado.</p> : upcomingAppointments.map(a => renderAppointmentCard(a, "upcoming"))}
         </TabsContent>
 
         <TabsContent value="history" className="space-y-4">
