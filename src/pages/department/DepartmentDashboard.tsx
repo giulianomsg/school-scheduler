@@ -22,7 +22,6 @@ interface DepartmentAppointment {
   school_notes?: string;
   department_notes?: string;
   cancel_reason?: string;
-  requested_attendant?: { name: string } | null;
   timeslots: {
     start_time: string;
     end_time: string;
