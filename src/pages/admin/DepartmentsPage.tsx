@@ -49,6 +49,8 @@ export default function DepartmentsPage() {
       return;
     }
 
+    let savedDeptId = editingDept?.id;
+
     if (editingDept) {
       const { error } = await supabase
         .from("departments")
@@ -56,20 +58,30 @@ export default function DepartmentsPage() {
         .eq("id", editingDept.id);
       if (error) { toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" }); return; }
     } else {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("departments")
-        .insert({ name });
+        .insert({ name })
+        .select()
+        .single();
       if (error) { toast({ title: "Erro ao criar", description: error.message, variant: "destructive" }); return; }
+      savedDeptId = data.id;
     }
 
     // Update the selected user's department_id
-    if (headId && editingDept) {
+    if (savedDeptId) {
       // Clear previous head if any
-      const prevHead = departmentUsers.find((u) => u.department_id === editingDept.id);
-      if (prevHead && prevHead.id !== headId) {
-        await supabase.from("profiles").update({ department_id: null }).eq("id", prevHead.id);
+      const prevHead = departmentUsers.find((u) => u.department_id === savedDeptId);
+      
+      if (headId === "none" || !headId) {
+        if (prevHead) {
+          await supabase.from("profiles").update({ department_id: null }).eq("id", prevHead.id);
+        }
+      } else if (headId && headId !== "none") {
+        if (prevHead && prevHead.id !== headId) {
+          await supabase.from("profiles").update({ department_id: null }).eq("id", prevHead.id);
+        }
+        await supabase.from("profiles").update({ department_id: savedDeptId }).eq("id", headId);
       }
-      await supabase.from("profiles").update({ department_id: editingDept.id }).eq("id", headId);
     }
 
     toast({ title: editingDept ? "Setor atualizado" : "Setor criado" });
@@ -90,14 +102,14 @@ export default function DepartmentsPage() {
   const openEdit = (dept: Department & { head?: Profile }) => {
     setEditingDept(dept);
     setName(dept.name);
-    setHeadId(dept.head?.id || "");
+    setHeadId(dept.head?.id || "none");
     setIsOpen(true);
   };
 
   const openCreate = () => {
     setEditingDept(null);
     setName("");
-    setHeadId("");
+    setHeadId("none");
     setIsOpen(true);
   };
 
@@ -130,7 +142,10 @@ export default function DepartmentsPage() {
                     <SelectValue placeholder="Selecione um responsável (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {departmentUsers.map((u) => (
+                    <SelectItem value="none">Nenhum responsável</SelectItem>
+                    {departmentUsers
+                      .filter(u => !u.department_id || u.department_id === editingDept?.id)
+                      .map((u) => (
                       <SelectItem key={u.id} value={u.id}>
                         {u.name || u.email}
                       </SelectItem>
