@@ -126,6 +126,16 @@ Deno.serve(async (req) => {
         break;
       }
 
+      case "listAuthUsers": {
+        const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
+        if (error) throw error;
+        result = {
+          success: true,
+          users: users.map(u => ({ id: u.id, last_sign_in_at: u.last_sign_in_at }))
+        };
+        break;
+      }
+
       default:
         return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
           status: 400,

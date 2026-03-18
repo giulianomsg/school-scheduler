@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/hooks/use-toast";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import { Plus, Send, Save, MoreHorizontal, Pencil, KeyRound, Mail, RefreshCw, Ban, CheckCircle, Trash2 } from "lucide-react";
+import { Plus, Send, Save, MoreHorizontal, Pencil, KeyRound, Mail, RefreshCw, Ban, CheckCircle, Trash2, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import SchoolUnitCombobox from "@/components/SchoolUnitCombobox";
 import DepartmentCombobox from "@/components/DepartmentCombobox";
 import type { Tables } from "@/integrations/supabase/types";
@@ -77,6 +77,11 @@ export default function UsersPage() {
   // Action loading (for suspend/reactivate/links)
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
+  // New states for enhancements
+  const [searchTerm, setSearchTerm] = useState("");
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
+  const [authUsers, setAuthUsers] = useState<Record<string, string | null>>({});
+
   const fetchProfiles = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -100,6 +105,20 @@ export default function UsersPage() {
         departamento: p.departments,
       }));
       setProfiles(mapped);
+      
+      // Fetch auth users for last_sign_in_at
+      try {
+        const authData = await supabase.functions.invoke("admin-user-actions", { body: { action: "listAuthUsers" } });
+        if (authData.data && authData.data.users) {
+          const dict: Record<string, string | null> = {};
+          authData.data.users.forEach((u: any) => {
+            dict[u.id] = u.last_sign_in_at;
+          });
+          setAuthUsers(dict);
+        }
+      } catch (e) {
+        console.error("Erro ao buscar ultimo acesso:", e);
+      }
     }
 
     setLoading(false);
@@ -334,6 +353,77 @@ export default function UsersPage() {
     </>
   );
 
+  // --- Filtering & Sorting Local Data ---
+  const filteredProfiles = profiles.filter(p => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    const roleString = (roleLabels[p.role] || p.role).toLowerCase();
+    const unitString = (p.unidade?.nome_escola || "").toLowerCase();
+    const depString = (p.departamento?.name || "").toLowerCase();
+    return (
+      (p.name || "").toLowerCase().includes(term) ||
+      p.email.toLowerCase().includes(term) ||
+      (p.cargo || "").toLowerCase().includes(term) ||
+      roleString.includes(term) ||
+      unitString.includes(term) ||
+      depString.includes(term)
+    );
+  });
+
+  const sortedProfiles = [...filteredProfiles].sort((a, b) => {
+    if (!sortConfig) return 0;
+    const { key, direction } = sortConfig;
+    
+    let aVal: any = a[key as keyof typeof a];
+    let bVal: any = b[key as keyof typeof b];
+
+    if (key === "unidade_setor") {
+      aVal = a.role === "school" ? a.unidade?.nome_escola : a.role === "department" ? a.departamento?.name : "";
+      bVal = b.role === "school" ? b.unidade?.nome_escola : b.role === "department" ? b.departamento?.name : "";
+    } else if (key === "role_label") {
+      aVal = roleLabels[a.role] || a.role;
+      bVal = roleLabels[b.role] || b.role;
+    } else if (key === "last_sign_in_at") {
+      aVal = authUsers[a.id] || "";
+      bVal = authUsers[b.id] || "";
+    }
+
+    if (!aVal && bVal) return direction === "asc" ? -1 : 1;
+    if (aVal && !bVal) return direction === "asc" ? 1 : -1;
+    if (!aVal && !bVal) return 0;
+    
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+        const cmp = aVal.localeCompare(bVal);
+        return direction === "asc" ? cmp : -cmp;
+    }
+    
+    if (aVal < bVal) return direction === "asc" ? -1 : 1;
+    if (aVal > bVal) return direction === "asc" ? 1 : -1;
+    return 0;
+  });
+
+  const handleSort = (key: string) => {
+    let direction: "asc" | "desc" = "asc";
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === "asc") {
+      direction = "desc";
+    }
+    setSortConfig({ key, direction });
+  };
+  
+  const SortIcon = ({ columnKey }: { columnKey: string }) => {
+    if (sortConfig?.key !== columnKey) return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />;
+    return sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />;
+  };
+  
+  const formatLastSignIn = (isoString?: string | null) => {
+    if (!isoString) return "Nunca logou";
+    try {
+      return new Date(isoString).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+    } catch {
+      return "Data inválida";
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
@@ -475,27 +565,51 @@ export default function UsersPage() {
       </AlertDialog>
 
       {/* Users Table */}
+      <div className="flex items-center justify-between mb-4">
+        <div className="relative w-full sm:w-96">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Busque por nome, e-mail, perfil, unidade, setor ou cargo..." 
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-9 bg-white"
+          />
+        </div>
+      </div>
       <Card>
         <CardContent className="p-0">
           {loading ? (
             <div className="p-8 text-center text-muted-foreground">Carregando...</div>
-          ) : profiles.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">Nenhum usuário ainda.</div>
+          ) : sortedProfiles.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">Nenhum usuário encontrado.</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Nome</TableHead>
-                    <TableHead>E-mail</TableHead>
-                    <TableHead>Perfil</TableHead>
-                    <TableHead>Unidade / Setor</TableHead>
-                    <TableHead>Cargo</TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('name')}>
+                      <div className="flex items-center">Nome <SortIcon columnKey="name" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('email')}>
+                      <div className="flex items-center">E-mail <SortIcon columnKey="email" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('role_label')}>
+                      <div className="flex items-center">Perfil <SortIcon columnKey="role_label" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('unidade_setor')}>
+                      <div className="flex items-center">Unidade / Setor <SortIcon columnKey="unidade_setor" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('cargo')}>
+                      <div className="flex items-center">Cargo <SortIcon columnKey="cargo" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('last_sign_in_at')}>
+                      <div className="flex items-center">Último Acesso <SortIcon columnKey="last_sign_in_at" /></div>
+                    </TableHead>
                     <TableHead className="w-20">Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {profiles.map((p) => (
+                  {sortedProfiles.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">{p.name || "—"}</TableCell>
                       <TableCell>{p.email}</TableCell>
@@ -509,6 +623,9 @@ export default function UsersPage() {
                           p.role === "department" ? (p.departamento?.name || "—") : "—"}
                       </TableCell>
                       <TableCell>{p.cargo || "—"}</TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {formatLastSignIn(authUsers[p.id])}
+                      </TableCell>
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
