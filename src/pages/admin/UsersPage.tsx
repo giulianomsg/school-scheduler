@@ -136,7 +136,17 @@ export default function UsersPage() {
           activities: inviteRole === "department" ? (inviteActivities || null) : null,
         },
       });
-      if (error) throw error;
+      
+      if (error) {
+        // O supabase-js omite o corpo do erro 400 por padrão.
+        // Vamos lançar um erro mais claro sugerindo o Rate Limit
+        throw new Error("Erro do servidor (Edge Function). Possivelmente você atingiu o limite de envio de e-mails do Supabase (Rate Limit) ou o e-mail já existe.");
+      }
+      
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
       toast({ title: "Convite enviado", description: `E-mail de convite enviado para ${inviteEmail}` });
       setIsInviteOpen(false);
       resetInviteForm();
