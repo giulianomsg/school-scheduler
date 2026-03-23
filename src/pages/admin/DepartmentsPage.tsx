@@ -30,10 +30,10 @@ export default function DepartmentsPage() {
       supabase.from("profiles").select("*").eq("role", "department"),
     ]);
 
-    // Enrich: find user whose department_id matches the department
+    // Enrich: find user whose id matches the department's head_id
     const enriched = (depts || []).map((d) => ({
       ...d,
-      head: users?.find((u) => u.department_id === d.id),
+      head: users?.find((u) => u.id === d.head_id),
     }));
 
     setDepartments(enriched);
@@ -54,34 +54,22 @@ export default function DepartmentsPage() {
     if (editingDept) {
       const { error } = await supabase
         .from("departments")
-        .update({ name })
+        .update({ name, head_id: headId === "none" ? null : headId })
         .eq("id", editingDept.id);
       if (error) { toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" }); return; }
     } else {
       const { data, error } = await supabase
         .from("departments")
-        .insert({ name })
+        .insert({ name, head_id: headId === "none" ? null : headId })
         .select()
         .single();
       if (error) { toast({ title: "Erro ao criar", description: error.message, variant: "destructive" }); return; }
       savedDeptId = data.id;
     }
 
-    // Update the selected user's department_id
-    if (savedDeptId) {
-      // Clear previous head if any
-      const prevHead = departmentUsers.find((u) => u.department_id === savedDeptId);
-      
-      if (headId === "none" || !headId) {
-        if (prevHead) {
-          await supabase.from("profiles").update({ department_id: null }).eq("id", prevHead.id);
-        }
-      } else if (headId && headId !== "none") {
-        if (prevHead && prevHead.id !== headId) {
-          await supabase.from("profiles").update({ department_id: null }).eq("id", prevHead.id);
-        }
-        await supabase.from("profiles").update({ department_id: savedDeptId }).eq("id", headId);
-      }
+    // Ensure the selected head is also a member of the department
+    if (savedDeptId && headId && headId !== "none") {
+      await supabase.from("profiles").update({ department_id: savedDeptId }).eq("id", headId);
     }
 
     toast({ title: editingDept ? "Setor atualizado" : "Setor criado" });
@@ -102,7 +90,7 @@ export default function DepartmentsPage() {
   const openEdit = (dept: Department & { head?: Profile }) => {
     setEditingDept(dept);
     setName(dept.name);
-    setHeadId(dept.head?.id || "none");
+    setHeadId(dept.head_id || "none");
     setIsOpen(true);
   };
 
