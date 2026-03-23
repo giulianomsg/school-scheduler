@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/hooks/use-toast";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
@@ -49,6 +50,12 @@ export default function UsersPage() {
   const [invitePhone, setInvitePhone] = useState("");
   const [inviteActivities, setInviteActivities] = useState("");
   const [inviteLoading, setInviteLoading] = useState(false);
+
+  // Bulk invite state
+  const [bulkEmails, setBulkEmails] = useState("");
+  const [bulkRole, setBulkRole] = useState<string>("school");
+  const [bulkInviteLoading, setBulkInviteLoading] = useState(false);
+  const [bulkResults, setBulkResults] = useState<{ email: string; status: 'success' | 'error'; message?: string }[]>([]);
 
   // Edit state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -182,6 +189,62 @@ export default function UsersPage() {
     setInviteSchoolUnitId(""); setInviteDepartmentId("");
     setInviteCargo(""); setInviteWhatsapp("");
     setInvitePhone(""); setInviteActivities("");
+    setBulkEmails(""); setBulkResults([]);
+  };
+
+  // --- Bulk Invite ---
+  const handleBulkInvite = async () => {
+    const emails = bulkEmails.split('\n').map(e => e.trim()).filter(e => e);
+    if (emails.length === 0) {
+      toast({ title: "Insira ao menos um e-mail", variant: "destructive" });
+      return;
+    }
+    setBulkInviteLoading(true);
+    setBulkResults([]);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    const results: { email: string; status: 'success' | 'error'; message?: string }[] = [];
+
+    for (const email of emails) {
+      try {
+        const { data, error } = await supabase.functions.invoke("invite-user", {
+          body: {
+            email,
+            name: "", // Forçado vazio, usuário completará no 1º acesso
+            role: bulkRole,
+            school_unit_id: null,
+            department_id: null,
+            cargo: null,
+            whatsapp: null,
+            phone: null,
+            activities: null,
+          },
+        });
+        
+        if (error || data?.error) {
+           results.push({ email, status: 'error', message: error?.message || data?.error });
+           errorCount++;
+        } else {
+           results.push({ email, status: 'success' });
+           successCount++;
+        }
+      } catch (err: any) {
+        results.push({ email, status: 'error', message: err.message });
+        errorCount++;
+      }
+      setBulkResults([...results]); // Atualiza progressivamente
+    }
+
+    toast({ 
+      title: "Processamento concluído", 
+      description: `${successCount} convidados com sucesso, ${errorCount} falhas.`,
+      variant: errorCount > 0 ? "destructive" : "default"
+    });
+    
+    fetchProfiles();
+    setBulkInviteLoading(false);
   };
 
   // --- Edit ---
@@ -435,47 +498,99 @@ export default function UsersPage() {
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" /> Convidar Usuário</Button>
           </DialogTrigger>
-          <DialogContent className="max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-h-[85vh] overflow-y-auto md:max-w-2xl">
             <DialogHeader><DialogTitle>Convidar Novo Usuário</DialogTitle></DialogHeader>
-            <div className="space-y-4 pt-4">
-              <div className="space-y-2">
-                <Label>E-mail</Label>
-                <Input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="usuario@exemplo.com" type="email" />
-              </div>
-              <div className="space-y-2">
-                <Label>Nome</Label>
-                <Input value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="Nome Completo" />
-              </div>
-              <div className="space-y-2">
-                <Label>Perfil</Label>
-                <Select value={inviteRole} onValueChange={setInviteRole}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Administrador</SelectItem>
-                    <SelectItem value="department">Setor</SelectItem>
-                    <SelectItem value="school">Escola</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {renderRoleFields(inviteRole, {
-                schoolUnitId: inviteSchoolUnitId, onSchoolChange: setInviteSchoolUnitId,
-                departmentId: inviteDepartmentId, onDepartmentChange: setInviteDepartmentId,
-                phone: invitePhone, onPhoneChange: setInvitePhone,
-                activities: inviteActivities, onActivitiesChange: setInviteActivities,
-              })}
-              <div className="space-y-2">
-                <Label>Cargo</Label>
-                <Input value={inviteCargo} onChange={(e) => setInviteCargo(e.target.value)} placeholder="Ex.: Diretor(a)" />
-              </div>
-              <div className="space-y-2">
-                <Label>WhatsApp</Label>
-                <Input value={inviteWhatsapp} onChange={(e) => setInviteWhatsapp(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
-              </div>
-              <Button onClick={handleInvite} className="w-full" disabled={inviteLoading}>
-                <Send className="mr-2 h-4 w-4" />
-                {inviteLoading ? "Enviando..." : "Enviar Convite"}
-              </Button>
-            </div>
+            <Tabs defaultValue="single" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="single">Convite Único</TabsTrigger>
+                <TabsTrigger value="bulk">Múltiplos (Lote)</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="single" className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label>E-mail</Label>
+                  <Input value={inviteEmail} onChange={(e) => setInviteEmail(e.target.value)} placeholder="usuario@exemplo.com" type="email" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Nome</Label>
+                  <Input value={inviteName} onChange={(e) => setInviteName(e.target.value)} placeholder="Nome Completo" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Perfil</Label>
+                  <Select value={inviteRole} onValueChange={setInviteRole}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="department">Setor</SelectItem>
+                      <SelectItem value="school">Escola</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {renderRoleFields(inviteRole, {
+                  schoolUnitId: inviteSchoolUnitId, onSchoolChange: setInviteSchoolUnitId,
+                  departmentId: inviteDepartmentId, onDepartmentChange: setInviteDepartmentId,
+                  phone: invitePhone, onPhoneChange: setInvitePhone,
+                  activities: inviteActivities, onActivitiesChange: setInviteActivities,
+                })}
+                <div className="space-y-2">
+                  <Label>Cargo</Label>
+                  <Input value={inviteCargo} onChange={(e) => setInviteCargo(e.target.value)} placeholder="Ex.: Diretor(a)" />
+                </div>
+                <div className="space-y-2">
+                  <Label>WhatsApp</Label>
+                  <Input value={inviteWhatsapp} onChange={(e) => setInviteWhatsapp(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
+                </div>
+                <Button onClick={handleInvite} className="w-full" disabled={inviteLoading}>
+                  <Send className="mr-2 h-4 w-4" />
+                  {inviteLoading ? "Enviando..." : "Enviar Convite Único"}
+                </Button>
+              </TabsContent>
+
+              <TabsContent value="bulk" className="space-y-4 pt-4">
+                <div className="space-y-2">
+                  <Label>Perfil Padrão</Label>
+                  <Select value={bulkRole} onValueChange={setBulkRole}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="admin">Administrador</SelectItem>
+                      <SelectItem value="department">Setor</SelectItem>
+                      <SelectItem value="school">Escola</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">Os usuários preencherão os dados obrigatórios no primeiro acesso.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Lista de E-mails (um por linha)</Label>
+                  <Textarea 
+                    value={bulkEmails} 
+                    onChange={(e) => setBulkEmails(e.target.value)} 
+                    placeholder="usuario1@exemplo.com&#10;usuario2@exemplo.com" 
+                    rows={8}
+                    className="font-mono text-sm"
+                  />
+                </div>
+                {bulkResults.length > 0 && (
+                  <div className="space-y-2 border rounded-md p-4 max-h-48 overflow-y-auto">
+                    <Label className="text-sm border-b pb-2 block mb-2">Relatório de Envio</Label>
+                    <div className="space-y-1.5 mt-2 text-sm max-w-full">
+                      {bulkResults.map((result, idx) => (
+                        <div key={idx} className={`flex items-start gap-2 ${result.status === 'error' ? 'text-destructive' : 'text-success'}`}>
+                            {result.status === 'success' ? <CheckCircle className="h-4 w-4 mt-0.5 shrink-0" /> : <Ban className="h-4 w-4 mt-0.5 shrink-0" />}
+                            <div className="break-all">
+                                <strong>{result.email}</strong>
+                                {result.status === 'error' && <span className="ml-2 text-xs opacity-80">- {result.message}</span>}
+                            </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <Button onClick={handleBulkInvite} className="w-full" disabled={bulkInviteLoading}>
+                  <Send className="mr-2 h-4 w-4" />
+                  {bulkInviteLoading ? "Processando Lote..." : "Enviar Convites em Lote"}
+                </Button>
+              </TabsContent>
+            </Tabs>
           </DialogContent>
         </Dialog>
       </div>

@@ -8,6 +8,7 @@ import ProtectedRoute from "@/components/ProtectedRoute";
 import AppLayout from "@/components/AppLayout";
 import Login from "@/pages/Login";
 import SetPassword from "@/pages/SetPassword";
+import FirstAccess from "@/pages/FirstAccess";
 import Index from "@/pages/Index";
 import DepartmentsPage from "@/pages/admin/DepartmentsPage";
 import UsersPage from "@/pages/admin/UsersPage";
@@ -32,6 +33,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/set-password" element={<SetPassword />} />
+            <Route path="/first-access" element={<ProtectedRoute><FirstAccess /></ProtectedRoute>} />
 
             <Route path="/" element={<ProtectedRoute><AppLayout><Index /></AppLayout></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><AppLayout><ProfilePage /></AppLayout></ProtectedRoute>} />

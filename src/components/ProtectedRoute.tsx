@@ -1,5 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProtectedRouteProps {
@@ -9,6 +9,7 @@ interface ProtectedRouteProps {
 
 export default function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) {
   const { session, profile, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -24,6 +25,25 @@ export default function ProtectedRoute({ children, allowedRoles }: ProtectedRout
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (profile) {
+    const isProfileComplete = () => {
+      if (!profile.name?.trim()) return false;
+      if (profile.role === "school" && !profile.school_unit_id) return false;
+      if (profile.role === "department" && !(profile as any).department_id) return false;
+      return true;
+    };
+
+    const isFirstAccessRoute = location.pathname === "/first-access";
+
+    if (!isProfileComplete() && !isFirstAccessRoute) {
+      return <Navigate to="/first-access" replace />;
+    }
+
+    if (isProfileComplete() && isFirstAccessRoute) {
+      return <Navigate to="/" replace />;
+    }
   }
 
   if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
