@@ -59,6 +59,9 @@ export default function UsersPage() {
   const [bulkResults, setBulkResults] = useState<{ email: string; status: 'success' | 'error'; message?: string }[]>([]);
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
 
+  // Rate Stats state
+  const [rateStats, setRateStats] = useState({ lastMinute: 0, lastHour: 0, lastDay: 0 });
+
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -137,9 +140,50 @@ export default function UsersPage() {
     setLoading(false);
   };
 
+  // --- SMTP Limit Tracking ---
+  const getInviteHistory = () => {
+    try {
+      const history = JSON.parse(localStorage.getItem('invite_history') || '[]');
+      const dayAgo = Date.now() - 86400 * 1000;
+      return history.filter((t: number) => t > dayAgo);
+    } catch {
+      return [];
+    }
+  };
+
+  const addInvitesToHistory = (count: number) => {
+    const history = getInviteHistory();
+    const now = Date.now();
+    for (let i = 0; i < count; i++) {
+        history.push(now);
+    }
+    localStorage.setItem('invite_history', JSON.stringify(history));
+    updateRateStats();
+  };
+
+  const getRateLimitStatus = () => {
+    const history = getInviteHistory();
+    const now = Date.now();
+    return {
+      lastMinute: history.filter((t: number) => t > now - 60 * 1000).length,
+      lastHour: history.filter((t: number) => t > now - 3600 * 1000).length,
+      lastDay: history.length
+    };
+  };
+
+  const updateRateStats = () => {
+    setRateStats(getRateLimitStatus());
+  };
+
   useEffect(() => { fetchProfiles(); }, []);
 
   useEffect(() => { setCurrentPage(1); }, [searchTerm, sortConfig]);
+
+  useEffect(() => {
+    const interval = setInterval(updateRateStats, 5000);
+    updateRateStats();
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (rateLimitCountdown > 0) {
@@ -188,6 +232,7 @@ export default function UsersPage() {
         throw new Error(data.error);
       }
 
+      addInvitesToHistory(1);
       toast({ title: "Convite enviado", description: `E-mail de convite enviado para ${inviteEmail}` });
       setIsInviteOpen(false);
       resetInviteForm();
@@ -220,6 +265,22 @@ export default function UsersPage() {
       toast({ title: "Limite de segurança excedido", description: "Por favor, envie no máximo 10 e-mails por vez para evitar bloqueio do servidor de e-mails.", variant: "destructive" });
       return;
     }
+
+    const { lastMinute, lastHour, lastDay } = getRateLimitStatus();
+    if (lastMinute + emails.length > 60) {
+      toast({ title: "Limite por minuto", description: "Isso excederá 60 e-mails/minuto. Aguarde a liberação.", variant: "destructive" });
+      if (rateLimitCountdown === 0) setRateLimitCountdown(60);
+      return;
+    }
+    if (lastHour + emails.length > 3600) {
+      toast({ title: "Limite por hora", description: "Isso excederá 3600 e-mails/hora.", variant: "destructive" });
+      return;
+    }
+    if (lastDay + emails.length > 86400) {
+      toast({ title: "Limite diário", description: "Isso excederá 86400 e-mails/dia.", variant: "destructive" });
+      return;
+    }
+
     setBulkInviteLoading(true);
     setBulkResults([]);
     
@@ -268,6 +329,10 @@ export default function UsersPage() {
         errorCount++;
       }
       setBulkResults([...results]); // Atualiza progressivamente
+    }
+
+    if (successCount > 0) {
+       addInvitesToHistory(successCount);
     }
 
     toast({ 
@@ -629,6 +694,19 @@ export default function UsersPage() {
                     </div>
                   </div>
                 )}
+                
+                <div className="bg-muted/50 p-3 rounded-md border flex items-center justify-between text-xs">
+                  <div>
+                    <span className="font-semibold block mb-0.5">Uso do SMTP (Google):</span>
+                    <span className="text-muted-foreground block text-[10px] leading-tight">Limites de Envio para a conta conectada.</span>
+                  </div>
+                  <div className="text-right space-y-0.5">
+                    <div className={`${rateStats.lastMinute > 50 ? 'text-destructive font-bold' : ''}`}>Minuto: {rateStats.lastMinute}/60</div>
+                    <div>Hora: {rateStats.lastHour}/3600</div>
+                    <div>Dia: {rateStats.lastDay}/86400</div>
+                  </div>
+                </div>
+
                 <Button onClick={handleBulkInvite} className="w-full" disabled={bulkInviteLoading || rateLimitCountdown > 0}>
                   <Send className="mr-2 h-4 w-4" />
                   {rateLimitCountdown > 0 ? `Aguarde ${rateLimitCountdown}s...` : bulkInviteLoading ? "Processando Lote..." : "Enviar Convites em Lote"}
