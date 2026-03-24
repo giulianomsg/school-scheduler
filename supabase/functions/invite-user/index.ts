@@ -71,8 +71,8 @@ Deno.serve(async (req) => {
       });
 
     if (inviteError) {
-      return new Response(JSON.stringify({ error: inviteError.message }), {
-        status: 400,
+      return new Response(JSON.stringify({ error: inviteError.message, status: inviteError.status, code: inviteError.code }), {
+        status: inviteError.status || 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

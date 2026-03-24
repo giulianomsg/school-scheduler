@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { toast } from "@/hooks/use-toast";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
@@ -56,6 +57,11 @@ export default function UsersPage() {
   const [bulkRole, setBulkRole] = useState<string>("school");
   const [bulkInviteLoading, setBulkInviteLoading] = useState(false);
   const [bulkResults, setBulkResults] = useState<{ email: string; status: 'success' | 'error'; message?: string }[]>([]);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   // Edit state
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -133,6 +139,15 @@ export default function UsersPage() {
 
   useEffect(() => { fetchProfiles(); }, []);
 
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, sortConfig]);
+
+  useEffect(() => {
+    if (rateLimitCountdown > 0) {
+      const timer = setTimeout(() => setRateLimitCountdown(rateLimitCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [rateLimitCountdown]);
+
   // --- Admin actions via edge function ---
   const callAdminAction = async (payload: Record<string, any>) => {
     const { data, error } = await supabase.functions.invoke("admin-user-actions", { body: payload });
@@ -194,9 +209,15 @@ export default function UsersPage() {
 
   // --- Bulk Invite ---
   const handleBulkInvite = async () => {
+    if (rateLimitCountdown > 0) return;
+
     const emails = bulkEmails.split('\n').map(e => e.trim()).filter(e => e);
     if (emails.length === 0) {
       toast({ title: "Insira ao menos um e-mail", variant: "destructive" });
+      return;
+    }
+    if (emails.length > 10) {
+      toast({ title: "Limite de segurança excedido", description: "Por favor, envie no máximo 10 e-mails por vez para evitar bloqueio do servidor de e-mails.", variant: "destructive" });
       return;
     }
     setBulkInviteLoading(true);
@@ -224,7 +245,19 @@ export default function UsersPage() {
         });
         
         if (error || data?.error) {
-           results.push({ email, status: 'error', message: error?.message || data?.error });
+           const errorMsg = String(error?.message || data?.error);
+           const isRateLimit = data?.status === 429 || errorMsg.toLowerCase().includes("rate limit") || errorMsg.toLowerCase().includes("too many requests");
+           
+           if (isRateLimit) {
+               console.error("Rate limit hit or blocked. Details:", data || errorMsg);
+               setRateLimitCountdown(60);
+               toast({ title: "Limite de envios detectado", description: "O servidor bloqueou envios consecutivos por segurança. Aguarde o contador para tentar novamente.", variant: "destructive" });
+               results.push({ email, status: 'error', message: "Falha: Limite de envios do servidor (Aguarde o contador)" });
+               setBulkResults([...results]);
+               break; // Stop processing further emails immediately
+           }
+
+           results.push({ email, status: 'error', message: errorMsg });
            errorCount++;
         } else {
            results.push({ email, status: 'success' });
@@ -472,6 +505,9 @@ export default function UsersPage() {
     }
     setSortConfig({ key, direction });
   };
+
+  const totalPages = Math.ceil(sortedProfiles.length / itemsPerPage);
+  const paginatedProfiles = sortedProfiles.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
   
   const SortIcon = ({ columnKey }: { columnKey: string }) => {
     if (sortConfig?.key !== columnKey) return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />;
@@ -494,7 +530,12 @@ export default function UsersPage() {
           <h1 className="text-2xl font-bold text-foreground">Gerenciamento de Usuários</h1>
           <p className="text-muted-foreground">Convide usuários e gerencie perfis</p>
         </div>
-        <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+        <Dialog open={isInviteOpen} onOpenChange={(open) => {
+          setIsInviteOpen(open);
+          if (!open) {
+            resetInviteForm();
+          }
+        }}>
           <DialogTrigger asChild>
             <Button><Plus className="mr-2 h-4 w-4" /> Convidar Usuário</Button>
           </DialogTrigger>
@@ -568,6 +609,9 @@ export default function UsersPage() {
                     rows={8}
                     className="font-mono text-sm"
                   />
+                  <p className={`text-xs ${bulkEmails.split('\n').filter(e=>e.trim()).length > 10 ? "text-destructive font-medium" : "text-muted-foreground"}`}>
+                    {bulkEmails.split('\n').filter(e=>e.trim()).length}/10 e-mails no lote.
+                  </p>
                 </div>
                 {bulkResults.length > 0 && (
                   <div className="space-y-2 border rounded-md p-4 max-h-48 overflow-y-auto">
@@ -585,9 +629,9 @@ export default function UsersPage() {
                     </div>
                   </div>
                 )}
-                <Button onClick={handleBulkInvite} className="w-full" disabled={bulkInviteLoading}>
+                <Button onClick={handleBulkInvite} className="w-full" disabled={bulkInviteLoading || rateLimitCountdown > 0}>
                   <Send className="mr-2 h-4 w-4" />
-                  {bulkInviteLoading ? "Processando Lote..." : "Enviar Convites em Lote"}
+                  {rateLimitCountdown > 0 ? `Aguarde ${rateLimitCountdown}s...` : bulkInviteLoading ? "Processando Lote..." : "Enviar Convites em Lote"}
                 </Button>
               </TabsContent>
             </Tabs>
@@ -724,7 +768,7 @@ export default function UsersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {sortedProfiles.map((p) => (
+                  {paginatedProfiles.map((p) => (
                     <TableRow key={p.id}>
                       <TableCell className="font-medium">{p.name || "—"}</TableCell>
                       <TableCell>{p.email}</TableCell>
@@ -780,6 +824,37 @@ export default function UsersPage() {
                   ))}
                 </TableBody>
               </Table>
+              {totalPages > 1 && (
+                <div className="py-4 border-t">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious 
+                          onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                          className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                      {Array.from({ length: totalPages }).map((_, i) => (
+                        <PaginationItem key={i}>
+                          <PaginationLink 
+                            isActive={currentPage === i + 1}
+                            onClick={() => setCurrentPage(i + 1)}
+                            className="cursor-pointer"
+                          >
+                            {i + 1}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
+                      <PaginationItem>
+                        <PaginationNext 
+                          onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                          className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
