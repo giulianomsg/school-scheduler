@@ -3,7 +3,9 @@ import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 
-type Profile = Tables<"profiles">;
+type Profile = Tables<"profiles"> & {
+  coordinatorDepts?: { id: string; name: string }[];
+};
 
 interface AuthContextType {
   session: Session | null;
@@ -26,10 +28,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (userId: string) => {
     const { data } = await supabase
       .from("profiles")
-      .select("*")
+      .select("*, coordinator_departments(department_id, departments(name))")
       .eq("id", userId)
       .single();
-    setProfile(data);
+
+    if (data) {
+      const formatted = {
+        ...data,
+        coordinatorDepts: data.coordinator_departments?.map((cd: any) => ({
+          id: cd.department_id,
+          name: cd.departments?.name
+        })) || []
+      };
+      setProfile(formatted);
+    } else {
+      setProfile(null);
+    }
   };
 
   useEffect(() => {

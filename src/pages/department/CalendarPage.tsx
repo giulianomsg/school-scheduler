@@ -7,27 +7,25 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format, addDays, startOfWeek, endOfWeek, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function CalendarPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [timeslots, setTimeslots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!user) return;
-    const fetchDept = async () => {
-      const { data } = await supabase
-        .from("profiles")
-        .select("department_id")
-        .eq("id", user.id)
-        .single();
-      if (data?.department_id) setDepartmentId(data.department_id);
+    if (profile) {
+      if (profile.role === 'department' && profile.department_id) {
+        setDepartmentId(profile.department_id);
+      } else if (profile.role === 'coordinator' && profile.coordinatorDepts && profile.coordinatorDepts.length > 0) {
+        if (!departmentId) setDepartmentId(profile.coordinatorDepts[0].id);
+      }
       setLoading(false);
-    };
-    fetchDept();
-  }, [user]);
+    }
+  }, [profile]);
 
   useEffect(() => {
     if (!departmentId) return;
@@ -90,8 +88,20 @@ export default function CalendarPage() {
           <p className="text-muted-foreground">
             {format(weekDays[0], "dd MMM", { locale: ptBR })} - {format(weekDays[6], "dd MMM yyyy", { locale: ptBR })}
           </p>
+          {profile?.role === 'coordinator' && profile.coordinatorDepts && profile.coordinatorDepts.length > 0 && (
+            <div className="mt-3 w-72">
+              <Select value={departmentId || ''} onValueChange={setDepartmentId}>
+                <SelectTrigger><SelectValue placeholder="Selecione um setor" /></SelectTrigger>
+                <SelectContent>
+                  {profile.coordinatorDepts.map(d => (
+                    <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-start mt-2 sm:mt-0">
           <Button variant="outline" size="icon" onClick={prevWeek}><ChevronLeft className="h-4 w-4" /></Button>
           <Button variant="outline" size="sm" onClick={() => setCurrentDate(new Date())}>Hoje</Button>
           <Button variant="outline" size="icon" onClick={nextWeek}><ChevronRight className="h-4 w-4" /></Button>

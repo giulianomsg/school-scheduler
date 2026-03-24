@@ -19,13 +19,15 @@ import "react-quill/dist/quill.snow.css";
 import { Plus, Send, Save, MoreHorizontal, Pencil, KeyRound, Mail, RefreshCw, Ban, CheckCircle, Trash2, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import SchoolUnitCombobox from "@/components/SchoolUnitCombobox";
 import DepartmentCombobox from "@/components/DepartmentCombobox";
+import MultiDepartmentCombobox from "@/components/MultiDepartmentCombobox";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Profile = Tables<"profiles">;
 
 const roleLabels: Record<string, string> = {
   admin: "Administrador",
-  department: "Setor",
+  coordinator: "Coordenador de Setores",
+  department: "Setor Único",
   school: "Escola",
 };
 
@@ -46,6 +48,7 @@ export default function UsersPage() {
   const [inviteRole, setInviteRole] = useState<string>("school");
   const [inviteSchoolUnitId, setInviteSchoolUnitId] = useState("");
   const [inviteDepartmentId, setInviteDepartmentId] = useState("");
+  const [inviteDepartmentIds, setInviteDepartmentIds] = useState<string[]>([]);
   const [inviteCargo, setInviteCargo] = useState("");
   const [inviteWhatsapp, setInviteWhatsapp] = useState("");
   const [invitePhone, setInvitePhone] = useState("");
@@ -77,6 +80,7 @@ export default function UsersPage() {
   const [editActivities, setEditActivities] = useState("");
   const [editSchoolUnitId, setEditSchoolUnitId] = useState("");
   const [editDepartmentId, setEditDepartmentId] = useState("");
+  const [editDepartmentIds, setEditDepartmentIds] = useState<string[]>([]);
   const [editLoading, setEditLoading] = useState(false);
 
   // Password modal
@@ -102,10 +106,9 @@ export default function UsersPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("profiles")
-      .select("*, unidades_escolares(nome_escola), departments!department_id(name)")
+      .select("*, unidades_escolares(nome_escola), departments!department_id(name), coordinator_departments(departments(name), department_id)")
       .order("created_at", { ascending: false });
 
-    // Novo bloco de tratamento de erro
     if (error) {
       toast({
         title: "Erro ao carregar usuários",
@@ -119,6 +122,10 @@ export default function UsersPage() {
         ...p,
         unidade: p.unidades_escolares,
         departamento: p.departments,
+        coordinatorDepts: p.coordinator_departments?.map((cd: any) => ({
+           id: cd.department_id,
+           name: cd.departments?.name
+        })) || []
       }));
       setProfiles(mapped);
       
@@ -215,10 +222,11 @@ export default function UsersPage() {
           role: inviteRole,
           school_unit_id: inviteRole === "school" ? (inviteSchoolUnitId || null) : null,
           department_id: inviteRole === "department" ? (inviteDepartmentId || null) : null,
+          department_ids: inviteRole === "coordinator" ? inviteDepartmentIds : [],
           cargo: inviteCargo || null,
           whatsapp: inviteWhatsapp || null,
           phone: inviteRole === "department" ? (invitePhone || null) : null,
-          activities: inviteRole === "department" ? (inviteActivities || null) : null,
+          activities: inviteRole === "department" || inviteRole === "coordinator" ? (inviteActivities || null) : null,
         },
       });
       
@@ -246,7 +254,7 @@ export default function UsersPage() {
 
   const resetInviteForm = () => {
     setInviteEmail(""); setInviteName(""); setInviteRole("school");
-    setInviteSchoolUnitId(""); setInviteDepartmentId("");
+    setInviteSchoolUnitId(""); setInviteDepartmentId(""); setInviteDepartmentIds([]);
     setInviteCargo(""); setInviteWhatsapp("");
     setInvitePhone(""); setInviteActivities("");
     setBulkEmails(""); setBulkResults([]);
@@ -298,6 +306,7 @@ export default function UsersPage() {
             role: bulkRole,
             school_unit_id: null,
             department_id: null,
+            department_ids: bulkRole === "coordinator" ? inviteDepartmentIds : [],
             cargo: null,
             whatsapp: null,
             phone: null,
@@ -356,6 +365,7 @@ export default function UsersPage() {
     setEditActivities(p.activities || "");
     setEditSchoolUnitId(p.school_unit_id || "");
     setEditDepartmentId((p as any).department_id || "");
+    setEditDepartmentIds((p as any).coordinatorDepts?.map((d: any) => d.id) || []);
     setIsEditOpen(true);
   };
 
@@ -370,7 +380,7 @@ export default function UsersPage() {
         cargo: editCargo || null,
         whatsapp: editWhatsapp || null,
         phone: editRole === "department" ? (editPhone || null) : null,
-        activities: editRole === "department" ? (editActivities || null) : null,
+        activities: editRole === "department" || editRole === "coordinator" ? (editActivities || null) : null,
         school_unit_id: editRole === "school" ? (editSchoolUnitId || null) : null,
         department_id: editRole === "department" ? (editDepartmentId || null) : null,
       } as any)
@@ -379,6 +389,14 @@ export default function UsersPage() {
     if (error) {
       toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
     } else {
+      if (editRole === "coordinator") {
+         await supabase.from("coordinator_departments").delete().eq("profile_id", editProfile.id);
+         if (editDepartmentIds.length > 0) {
+            const inserts = editDepartmentIds.map(id => ({ profile_id: editProfile.id, department_id: id }));
+            await supabase.from("coordinator_departments").insert(inserts);
+         }
+      }
+
       toast({ title: "Usuário atualizado com sucesso" });
       setIsEditOpen(false);
       fetchProfiles();
@@ -478,6 +496,7 @@ export default function UsersPage() {
   const renderRoleFields = (role: string, opts: {
     schoolUnitId: string; onSchoolChange: (v: string) => void;
     departmentId: string; onDepartmentChange: (v: string) => void;
+    departmentIds: string[]; onDepartmentIdsChange: (v: string[]) => void;
     phone: string; onPhoneChange: (v: string) => void;
     activities: string; onActivitiesChange: (v: string) => void;
   }) => (
@@ -486,6 +505,13 @@ export default function UsersPage() {
         <div className="space-y-2">
           <Label>Unidade Escolar</Label>
           <SchoolUnitCombobox value={opts.schoolUnitId} onChange={opts.onSchoolChange} />
+        </div>
+      )}
+      {role === "coordinator" && (
+        <div className="space-y-2">
+          <Label>Setores do Coordenador</Label>
+          <MultiDepartmentCombobox value={opts.departmentIds} onChange={opts.onDepartmentIdsChange} />
+          <p className="text-xs text-muted-foreground mt-1">O coordenador poderá gerenciar as agendas destes setores.</p>
         </div>
       )}
       {role === "department" && (
@@ -511,6 +537,19 @@ export default function UsersPage() {
           </div>
         </>
       )}
+      {(role === "department" || role === "coordinator") && (
+        <div className="space-y-2">
+          <Label className="mb-1">Atividades do Funcionário / Coordenador</Label>
+          <div className="bg-white rounded-md">
+            <ReactQuill
+              theme="snow"
+              value={opts.activities}
+              onChange={opts.onActivitiesChange}
+              placeholder="Descreva as tarefas diárias e responsabilidades..."
+            />
+          </div>
+        </div>
+      )}
     </>
   );
 
@@ -521,13 +560,15 @@ export default function UsersPage() {
     const roleString = (roleLabels[p.role] || p.role).toLowerCase();
     const unitString = (p.unidade?.nome_escola || "").toLowerCase();
     const depString = (p.departamento?.name || "").toLowerCase();
+    const coordString = ((p as any).coordinatorDepts?.map((d: any) => d.name).join(" ") || "").toLowerCase();
     return (
       (p.name || "").toLowerCase().includes(term) ||
       p.email.toLowerCase().includes(term) ||
       (p.cargo || "").toLowerCase().includes(term) ||
       roleString.includes(term) ||
       unitString.includes(term) ||
-      depString.includes(term)
+      depString.includes(term) ||
+      coordString.includes(term)
     );
   });
 
@@ -539,8 +580,8 @@ export default function UsersPage() {
     let bVal: any = b[key as keyof typeof b];
 
     if (key === "unidade_setor") {
-      aVal = a.role === "school" ? a.unidade?.nome_escola : a.role === "department" ? a.departamento?.name : "";
-      bVal = b.role === "school" ? b.unidade?.nome_escola : b.role === "department" ? b.departamento?.name : "";
+      aVal = a.role === "school" ? a.unidade?.nome_escola : a.role === "department" ? a.departamento?.name : a.role === "coordinator" ? (a as any).coordinatorDepts?.map((d:any)=>d.name).join(", ") : "";
+      bVal = b.role === "school" ? b.unidade?.nome_escola : b.role === "department" ? b.departamento?.name : b.role === "coordinator" ? (b as any).coordinatorDepts?.map((d:any)=>d.name).join(", ") : "";
     } else if (key === "role_label") {
       aVal = roleLabels[a.role] || a.role;
       bVal = roleLabels[b.role] || b.role;
@@ -627,7 +668,8 @@ export default function UsersPage() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="admin">Administrador</SelectItem>
-                      <SelectItem value="department">Setor</SelectItem>
+                      <SelectItem value="coordinator">Coordenador de Setores</SelectItem>
+                      <SelectItem value="department">Setor Único</SelectItem>
                       <SelectItem value="school">Escola</SelectItem>
                     </SelectContent>
                   </Select>
@@ -635,6 +677,7 @@ export default function UsersPage() {
                 {renderRoleFields(inviteRole, {
                   schoolUnitId: inviteSchoolUnitId, onSchoolChange: setInviteSchoolUnitId,
                   departmentId: inviteDepartmentId, onDepartmentChange: setInviteDepartmentId,
+                  departmentIds: inviteDepartmentIds, onDepartmentIdsChange: setInviteDepartmentIds,
                   phone: invitePhone, onPhoneChange: setInvitePhone,
                   activities: inviteActivities, onActivitiesChange: setInviteActivities,
                 })}
@@ -659,10 +702,17 @@ export default function UsersPage() {
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="admin">Administrador</SelectItem>
-                      <SelectItem value="department">Setor</SelectItem>
+                      <SelectItem value="coordinator">Coordenador de Setores</SelectItem>
+                      <SelectItem value="department">Setor Único</SelectItem>
                       <SelectItem value="school">Escola</SelectItem>
                     </SelectContent>
                   </Select>
+                  {bulkRole === "coordinator" && (
+                    <div className="mt-4 mb-2 space-y-2">
+                       <Label>Setores Atribuídos ao Coordenador</Label>
+                       <MultiDepartmentCombobox value={inviteDepartmentIds} onChange={setInviteDepartmentIds} />
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground mt-1">Os usuários preencherão os dados obrigatórios no primeiro acesso.</p>
                 </div>
                 <div className="space-y-2">
@@ -736,7 +786,8 @@ export default function UsersPage() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="admin">Administrador</SelectItem>
-                  <SelectItem value="department">Setor</SelectItem>
+                  <SelectItem value="coordinator">Coordenador de Setores</SelectItem>
+                  <SelectItem value="department">Setor Único</SelectItem>
                   <SelectItem value="school">Escola</SelectItem>
                 </SelectContent>
               </Select>
@@ -744,6 +795,7 @@ export default function UsersPage() {
             {renderRoleFields(editRole, {
               schoolUnitId: editSchoolUnitId, onSchoolChange: setEditSchoolUnitId,
               departmentId: editDepartmentId, onDepartmentChange: setEditDepartmentId,
+              departmentIds: editDepartmentIds, onDepartmentIdsChange: setEditDepartmentIds,
               phone: editPhone, onPhoneChange: setEditPhone,
               activities: editActivities, onActivitiesChange: setEditActivities,
             })}
@@ -857,7 +909,8 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell>
                         {p.role === "school" ? (p.unidade?.nome_escola || "—") :
-                          p.role === "department" ? (p.departamento?.name || "—") : "—"}
+                          p.role === "department" ? (p.departamento?.name || "—") : 
+                          p.role === "coordinator" ? ((p as any).coordinatorDepts?.map((d:any)=>d.name).join(", ") || "Nenhum Setor") : "—"}
                       </TableCell>
                       <TableCell>{p.cargo || "—"}</TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">

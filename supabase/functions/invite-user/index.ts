@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { email, name, role, school_unit_id, department_id, cargo, whatsapp, phone, activities } = await req.json();
+    const { email, name, role, school_unit_id, department_id, department_ids, cargo, whatsapp, phone, activities } = await req.json();
 
     if (!email) {
       return new Response(JSON.stringify({ error: "Email is required" }), {
@@ -87,6 +87,17 @@ Deno.serve(async (req) => {
         phone: phone || null,
         activities: activities || null,
       }).eq("id", inviteData.user.id);
+
+      if (role === 'coordinator' && department_ids && Array.isArray(department_ids)) {
+        const inserts = department_ids.map((depId: string) => ({
+          profile_id: inviteData.user.id,
+          department_id: depId
+        }));
+        if (inserts.length > 0) {
+          const { error: coordError } = await supabaseAdmin.from('coordinator_departments').insert(inserts);
+          if (coordError) console.error("Error inserting coordinator_departments:", coordError);
+        }
+      }
     }
 
     return new Response(JSON.stringify({ user: inviteData.user }), {

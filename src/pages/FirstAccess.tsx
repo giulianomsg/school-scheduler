@@ -11,6 +11,7 @@ import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import SchoolUnitCombobox from "@/components/SchoolUnitCombobox";
 import DepartmentCombobox from "@/components/DepartmentCombobox";
+import { Badge } from "@/components/ui/badge";
 
 export default function FirstAccess() {
   const { user, profile, refreshProfile } = useAuth();
@@ -61,10 +62,12 @@ export default function FirstAccess() {
     };
 
     if (profile?.role === "school") updates.school_unit_id = schoolUnitId || null;
-    if (profile?.role === "department") {
-      updates.department_id = departmentId || null;
+    if (profile?.role === "department" || profile?.role === "coordinator") {
       updates.phone = phone || null;
       updates.activities = activities || null;
+      if (profile?.role === "department") {
+        updates.department_id = departmentId || null;
+      }
     }
 
     const { error } = await supabase.from("profiles").update(updates).eq("id", user.id);
@@ -118,14 +121,31 @@ export default function FirstAccess() {
               </div>
             )}
             
-            {profile.role === "department" && (
+            {(profile.role === "department" || profile.role === "coordinator") && (
               <>
+                {profile.role === "department" && (
+                  <div className="space-y-2">
+                    <Label>Setor/Departamento <span className="text-destructive">*</span></Label>
+                    <DepartmentCombobox value={departmentId} onChange={setDepartmentId} />
+                  </div>
+                )}
+                {profile.role === "coordinator" && (
+                   <div className="space-y-2">
+                      <Label>Setores Gerenciados</Label>
+                      <div className="flex flex-wrap gap-1 p-2 bg-slate-50 border rounded-md min-h-[40px] items-center">
+                        {profile.coordinatorDepts && profile.coordinatorDepts.length > 0 ? (
+                          profile.coordinatorDepts.map(d => (
+                            <Badge variant="secondary" key={d.id} className="mr-1 mb-1">{d.name}</Badge>
+                          ))
+                        ) : (
+                          <span className="text-sm text-muted-foreground">Nenhum setor atribuído ainda. Contate o administrador para providenciar acesso aos setores.</span>
+                        )}
+                      </div>
+                   </div>
+                )}
+
                 <div className="space-y-2">
-                  <Label>Setor/Departamento <span className="text-destructive">*</span></Label>
-                  <DepartmentCombobox value={departmentId} onChange={setDepartmentId} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Telefone (Setor)</Label>
+                  <Label>Telefone</Label>
                   <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(XX) XXXXX-XXXX" />
                 </div>
                 <div className="space-y-2">

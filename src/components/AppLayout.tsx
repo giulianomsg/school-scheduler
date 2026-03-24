@@ -20,12 +20,14 @@ import NotificationsPopover from "@/components/NotificationsPopover";
 
 const roleLabels: Record<string, string> = {
   admin: "Administrador",
+  coordinator: "Coordenador de Setores",
   department: "Chefe de Setor",
   school: "Diretor Escolar",
 };
 
 const roleColors: Record<string, string> = {
   admin: "bg-destructive/10 text-destructive",
+  coordinator: "bg-amber-100 text-amber-900 border-amber-200",
   department: "bg-secondary/20 text-secondary-foreground",
   school: "bg-success/10 text-success",
 };
@@ -172,7 +174,7 @@ function getNavItems(role?: string) {
       { href: "/users", label: "Usuários", icon: Users },
       { href: "/profile", label: "Meu Perfil", icon: User }
     );
-  } else if (role === "department") {
+  } else if (role === "department" || role === "coordinator") {
     items.push(
       { href: "/", label: "Painel", icon: LayoutDashboard },
       { href: "/timeslots", label: "Horários", icon: Clock },

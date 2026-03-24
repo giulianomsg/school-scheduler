@@ -12,9 +12,10 @@ import { CalendarDays, Clock, Trash2, CalendarPlus, AlertCircle, CopyPlus, Shiel
 import { format, isPast, parseISO, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export default function TimeslotsPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [timeslots, setTimeslots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,34 +26,44 @@ export default function TimeslotsPage() {
   const [duration, setDuration] = useState("30");
   const [requires24hAdvance, setRequires24hAdvance] = useState(true);
 
-  const fetchTimeslots = async () => {
-    if (!user) return;
+  const fetchTimeslots = async (currentDeptId: string) => {
     setLoading(true);
 
-    const { data: profile } = await supabase.from("profiles").select("department_id").eq("id", user.id).single();
+    const { data: slots, error } = await supabase
+      .from("timeslots")
+      .select("*, appointments(id)")
+      .eq("department_id", currentDeptId)
+      .order("start_time", { ascending: true });
 
-    if (profile?.department_id) {
-      setDepartmentId(profile.department_id);
-
-      // 💡 CORREÇÃO 1: Buscamos a tabela 'appointments' para saber se o horário tem histórico!
-      const { data: slots, error } = await supabase
-        .from("timeslots")
-        .select("*, appointments(id)")
-        .eq("department_id", profile.department_id)
-        .order("start_time", { ascending: true });
-
-      if (error) {
-        toast({ title: "Erro ao buscar horários", description: error.message, variant: "destructive" });
-      } else {
-        setTimeslots(slots || []);
-      }
+    if (error) {
+      toast({ title: "Erro ao buscar horários", description: error.message, variant: "destructive" });
+    } else {
+      setTimeslots(slots || []);
     }
+    
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchTimeslots();
-  }, [user]);
+    if (profile) {
+      let initDeptId = departmentId;
+      if (!initDeptId) {
+        if (profile.role === 'department' && profile.department_id) {
+          initDeptId = profile.department_id;
+        } else if (profile.role === 'coordinator' && profile.coordinatorDepts && profile.coordinatorDepts.length > 0) {
+          initDeptId = profile.coordinatorDepts[0].id;
+        }
+      }
+      
+      if (initDeptId && initDeptId !== departmentId) {
+         setDepartmentId(initDeptId);
+      } else if (initDeptId) {
+         fetchTimeslots(initDeptId);
+      } else {
+         setLoading(false);
+      }
+    }
+  }, [profile, departmentId]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,7 +127,7 @@ export default function TimeslotsPage() {
       toast({ title: "Agenda Gerada com Sucesso!", description: `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos.` });
       setStartTime("");
       setEndTime("");
-      fetchTimeslots();
+      fetchTimeslots(departmentId);
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     }
@@ -130,7 +141,7 @@ export default function TimeslotsPage() {
       if (error) throw error;
 
       toast({ title: "Sucesso", description: "Horário apagado." });
-      fetchTimeslots();
+      fetchTimeslots(departmentId!);
     } catch (error: any) {
       toast({ title: "Erro", description: "Não é possível apagar um horário que já possui histórico.", variant: "destructive" });
     }
@@ -154,7 +165,7 @@ export default function TimeslotsPage() {
       if (error) throw error;
 
       toast({ title: "Limpeza concluída", description: `${expiredUnusedIds.length} horários ociosos foram apagados com sucesso.` });
-      fetchTimeslots();
+      fetchTimeslots(departmentId!);
     } catch (error: any) {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
     }
@@ -220,9 +231,23 @@ export default function TimeslotsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Gerenciamento de Horários</h1>
-        <p className="text-muted-foreground">Crie e disponibilize vagas para as escolas agendarem no seu setor.</p>
+      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Gerenciamento de Horários</h1>
+          <p className="text-muted-foreground">Crie e disponibilize vagas para as escolas agendarem no seu setor.</p>
+        </div>
+        {profile?.role === 'coordinator' && profile.coordinatorDepts && profile.coordinatorDepts.length > 0 && (
+          <div className="w-full md:w-72 mt-1">
+            <Select value={departmentId || ''} onValueChange={setDepartmentId}>
+              <SelectTrigger className="bg-white"><SelectValue placeholder="Selecione um setor para gerenciar" /></SelectTrigger>
+              <SelectContent>
+                {profile.coordinatorDepts.map(d => (
+                  <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <Card className="border-indigo-100 shadow-sm">
