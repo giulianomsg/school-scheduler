@@ -90,16 +90,14 @@ export default function Login() {
     }
     setResetLoading(true);
     try {
-      // Verifica se o e-mail está cadastrado no sistema
-      const { data: existingProfile, error: profileError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("email", targetEmail)
-        .maybeSingle();
+      // Verifica se o e-mail está cadastrado no sistema via RPC (Bypass RLS para anon)
+      // @ts-ignore - The RPC was just added and types are not yet regenerated
+      const { data: emailExists, error: rpcError } = await supabase
+        .rpc('check_email_exists', { check_email: targetEmail });
 
-      if (profileError) throw profileError;
+      if (rpcError) throw rpcError;
 
-      if (!existingProfile) {
+      if (!emailExists) {
         toast({ title: "E-mail não encontrado", description: "Este e-mail não está cadastrado no sistema. Apenas usuários convidados podem redefinir a senha.", variant: "destructive" });
         return;
       }
