@@ -16,8 +16,13 @@ export default function SetPassword() {
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const type = hashParams.get("type");
-    if (type !== "invite" && type !== "recovery") {
+    const searchParams = new URLSearchParams(window.location.search);
+    
+    const type = hashParams.get("type") || searchParams.get("type");
+    const code = searchParams.get("code");
+
+    // Do not redirect if we have a valid auth token processing in the URL
+    if (type !== "invite" && type !== "recovery" && !code) {
       supabase.auth.getSession().then(({ data }) => {
         if (!data.session) {
           navigate("/login");
