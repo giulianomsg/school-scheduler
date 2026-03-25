@@ -66,13 +66,6 @@ export default function CoordinatorDashboard() {
 
     const deptIds = coordinatorDepts.map((d: any) => d.id);
 
-    const [totalSlots, availableSlots] = await Promise.all([
-      supabase.from("timeslots").select("id", { count: "exact", head: true }).in("department_id", deptIds),
-      supabase.from("timeslots").select("id", { count: "exact", head: true }).in("department_id", deptIds).eq("is_available", true),
-    ]);
-    
-    setStats({ totalSlots: totalSlots.count ?? 0, availableSlots: availableSlots.count ?? 0 });
-
     const { data: appts } = await supabase
       .from("appointments")
       .select("*, timeslots!inner(*), profiles!appointments_requester_id_fkey(*, unidades_escolares(*))")
@@ -87,6 +80,29 @@ export default function CoordinatorDashboard() {
   useEffect(() => {
     fetchData();
   }, [user, profile]);
+
+  useEffect(() => {
+    const fetchStatsCounter = async () => {
+      if (!user || coordinatorDepts.length === 0) return;
+
+      let deptIds = coordinatorDepts.map((d: any) => d.id);
+      if (selectedDeptFilter !== "all") {
+        deptIds = [selectedDeptFilter];
+      }
+
+      const [totalReq, availableReq] = await Promise.all([
+        supabase.from("timeslots").select("id", { count: "exact", head: true }).in("department_id", deptIds),
+        supabase.from("timeslots").select("id", { count: "exact", head: true }).in("department_id", deptIds).eq("is_available", true),
+      ]);
+      
+      setStats({ 
+        totalSlots: totalReq.count ?? 0, 
+        availableSlots: availableReq.count ?? 0 
+      });
+    };
+
+    fetchStatsCounter();
+  }, [selectedDeptFilter, coordinatorDepts, user]);
 
   const getDeptName = (deptId: string) => {
     const d = coordinatorDepts.find((x: any) => x.id === deptId);
