@@ -27,7 +27,7 @@ export default function DepartmentsPage() {
     setLoading(true);
     const [{ data: depts }, { data: users }] = await Promise.all([
       supabase.from("departments").select("*"),
-      supabase.from("profiles").select("*").eq("role", "department"),
+      supabase.from("profiles").select("*").in("role", ["department", "coordinator"]),
     ]);
 
     // Enrich: find user whose id matches the department's head_id

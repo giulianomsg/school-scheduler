@@ -14,6 +14,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -81,6 +82,41 @@ export default function Login() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    const targetEmail = email.trim();
+    if (!targetEmail) {
+      toast({ title: "Informe seu e-mail", description: "Digite seu e-mail no campo acima antes de solicitar a redefinição.", variant: "destructive" });
+      return;
+    }
+    setResetLoading(true);
+    try {
+      // Verifica se o e-mail está cadastrado no sistema
+      const { data: existingProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("email", targetEmail)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      if (!existingProfile) {
+        toast({ title: "E-mail não encontrado", description: "Este e-mail não está cadastrado no sistema. Apenas usuários convidados podem redefinir a senha.", variant: "destructive" });
+        return;
+      }
+
+      const { error } = await supabase.auth.resetPasswordForEmail(targetEmail, {
+        redirectTo: `${window.location.origin}/set-password`,
+      });
+      if (error) throw error;
+
+      toast({ title: "E-mail enviado!", description: `Um link de redefinição de senha foi enviado para ${targetEmail}. Verifique sua caixa de entrada e spam.` });
+    } catch (error: any) {
+      toast({ title: "Erro ao enviar e-mail", description: error.message, variant: "destructive" });
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md animate-fade-in">
@@ -136,10 +172,21 @@ export default function Login() {
                   />
                 </div>
               </div>
-              <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading}>
+              <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading || resetLoading}>
                 {isLoading ? "Entrando..." : "Entrar com e-mail"}
               </Button>
             </form>
+
+            <div className="mt-2 text-center">
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                disabled={resetLoading}
+                className="text-sm text-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resetLoading ? "Enviando e-mail..." : "Esqueci minha senha"}
+              </button>
+            </div>
 
             <div className="mt-4 flex items-center justify-between">
               <span className="w-1/5 border-b lg:w-1/4"></span>
