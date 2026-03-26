@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { Lock, Mail } from "lucide-react";
+import { translateError } from "@/lib/errorTranslations";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -54,7 +55,7 @@ export default function Login() {
     } catch (error: any) {
       toast({
         title: "Erro ao conectar com Google",
-        description: error.message,
+        description: translateError(error),
         variant: "destructive",
       });
       setIsGoogleLoading(false);
@@ -68,13 +69,11 @@ export default function Login() {
       await signIn(email, password);
       navigate("/");
     } catch (error: any) {
-      const msg = (error.message || "").toLowerCase();
-      const isBanned = msg.includes("banned") || msg.includes("suspended") || msg.includes("ban");
+      const msg = translateError(error);
+      const isBanned = msg === "Acesso suspenso pelo administrador.";
       toast({
         title: isBanned ? "Conta Suspensa" : "Falha no login",
-        description: isBanned
-          ? "Seu acesso foi suspenso pelo administrador."
-          : error.message || "Credenciais inválidas",
+        description: msg,
         variant: "destructive",
       });
     } finally {
@@ -90,10 +89,10 @@ export default function Login() {
     }
     setResetLoading(true);
     try {
-      // Verifica se o e-mail está cadastrado no sistema via RPC (Bypass RLS para anon)
-      // @ts-ignore - The RPC was just added and types are not yet regenerated
-      const { data: emailExists, error: rpcError } = await supabase
-        .rpc('check_email_exists', { check_email: targetEmail });
+      // The RPC was just added and types are not yet regenerated
+      const { data: emailExists, error: rpcError } = await (supabase.rpc as any)(
+        'check_email_exists', { check_email: targetEmail }
+      );
 
       if (rpcError) throw rpcError;
 
@@ -109,7 +108,7 @@ export default function Login() {
 
       toast({ title: "E-mail enviado!", description: `Um link de redefinição de senha foi enviado para ${targetEmail}. Verifique sua caixa de entrada e spam.` });
     } catch (error: any) {
-      toast({ title: "Erro ao enviar e-mail", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao enviar e-mail", description: translateError(error), variant: "destructive" });
     } finally {
       setResetLoading(false);
     }

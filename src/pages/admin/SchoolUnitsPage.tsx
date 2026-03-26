@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "@/hooks/use-toast";
 import { Plus, Pencil, Trash2 } from "lucide-react";
+import { translateError } from "@/lib/errorTranslations";
 
 interface SchoolUnit {
   id: string;
@@ -80,11 +81,11 @@ export default function SchoolUnitsPage() {
 
     if (editingUnit) {
       const { error } = await supabase.from("unidades_escolares").update(payload).eq("id", editingUnit.id);
-      if (error) { toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" }); return; }
+      if (error) { toast({ title: "Erro ao atualizar", description: translateError(error), variant: "destructive" }); return; }
       toast({ title: "Unidade escolar atualizada" });
     } else {
       const { error } = await supabase.from("unidades_escolares").insert(payload);
-      if (error) { toast({ title: "Erro ao criar", description: error.message, variant: "destructive" }); return; }
+      if (error) { toast({ title: "Erro ao criar", description: translateError(error), variant: "destructive" }); return; }
       toast({ title: "Unidade escolar criada" });
     }
 
@@ -96,7 +97,7 @@ export default function SchoolUnitsPage() {
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("unidades_escolares").delete().eq("id", id);
-    if (error) { toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }); return; }
+    if (error) { toast({ title: "Erro ao excluir", description: translateError(error), variant: "destructive" }); return; }
     toast({ title: "Unidade escolar excluída" });
     fetchUnits();
   };

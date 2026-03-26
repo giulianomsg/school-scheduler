@@ -12,6 +12,7 @@ import "react-quill/dist/quill.snow.css";
 import SchoolUnitCombobox from "@/components/SchoolUnitCombobox";
 import DepartmentCombobox from "@/components/DepartmentCombobox";
 import { Badge } from "@/components/ui/badge";
+import { translateError } from "@/lib/errorTranslations";
 
 export default function FirstAccess() {
   const { user, profile, refreshProfile } = useAuth();
@@ -73,7 +74,7 @@ export default function FirstAccess() {
     const { error } = await supabase.from("profiles").update(updates).eq("id", user.id);
 
     if (error) {
-      toast({ title: "Erro de conexão", description: error.message, variant: "destructive" });
+      toast({ title: "Erro de conexão", description: translateError(error), variant: "destructive" });
     } else {
       toast({ title: "Perfil configurado com sucesso!", description: "Bem-vindo ao sistema." });
       await refreshProfile();

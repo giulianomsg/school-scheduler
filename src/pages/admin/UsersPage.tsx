@@ -21,6 +21,7 @@ import SchoolUnitCombobox from "@/components/SchoolUnitCombobox";
 import DepartmentCombobox from "@/components/DepartmentCombobox";
 import MultiDepartmentCombobox from "@/components/MultiDepartmentCombobox";
 import type { Tables } from "@/integrations/supabase/types";
+import { translateError } from "@/lib/errorTranslations";
 
 type Profile = Tables<"profiles">;
 
@@ -112,7 +113,7 @@ export default function UsersPage() {
     if (error) {
       toast({
         title: "Erro ao carregar usuários",
-        description: error.message,
+        description: translateError(error),
         variant: "destructive"
       });
       console.error("Erro no fetchProfiles:", error);
@@ -246,7 +247,7 @@ export default function UsersPage() {
       resetInviteForm();
       fetchProfiles();
     } catch (error: any) {
-      toast({ title: "Falha no convite", description: error.message, variant: "destructive" });
+      toast({ title: "Falha no convite", description: translateError(error), variant: "destructive" });
     } finally {
       setInviteLoading(false);
     }
@@ -334,7 +335,7 @@ export default function UsersPage() {
            successCount++;
         }
       } catch (err: any) {
-        results.push({ email, status: 'error', message: err.message });
+        results.push({ email, status: 'error', message: translateError(err) });
         errorCount++;
       }
       setBulkResults([...results]); // Atualiza progressivamente
@@ -387,7 +388,7 @@ export default function UsersPage() {
       .eq("id", editProfile.id);
 
     if (error) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao salvar", description: translateError(error), variant: "destructive" });
     } else {
       if (editRole === "coordinator") {
          await supabase.from("coordinator_departments").delete().eq("profile_id", editProfile.id);
@@ -419,7 +420,7 @@ export default function UsersPage() {
       toast({ title: "Senha atualizada com sucesso" });
       setIsPasswordOpen(false);
     } catch (err: any) {
-      toast({ title: "Erro ao alterar senha", description: err.message, variant: "destructive" });
+      toast({ title: "Erro ao alterar senha", description: translateError(err), variant: "destructive" });
     } finally {
       setPasswordLoading(false);
     }
@@ -438,7 +439,7 @@ export default function UsersPage() {
         toast({ title: `${label} gerado` });
       }
     } catch (err: any) {
-      toast({ title: "Erro ao gerar link", description: err.message, variant: "destructive" });
+      toast({ title: "Erro ao gerar link", description: translateError(err), variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -452,7 +453,7 @@ export default function UsersPage() {
       toast({ title: "Acesso suspenso", description: `${p.name || p.email} foi suspenso.` });
       fetchProfiles();
     } catch (err: any) {
-      toast({ title: "Erro ao suspender", description: err.message, variant: "destructive" });
+      toast({ title: "Erro ao suspender", description: translateError(err), variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -465,7 +466,7 @@ export default function UsersPage() {
       toast({ title: "Acesso reativado", description: `${p.name || p.email} foi reativado.` });
       fetchProfiles();
     } catch (err: any) {
-      toast({ title: "Erro ao reativar", description: err.message, variant: "destructive" });
+      toast({ title: "Erro ao reativar", description: translateError(err), variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -486,7 +487,7 @@ export default function UsersPage() {
       setIsDeleteOpen(false);
       fetchProfiles();
     } catch (err: any) {
-      toast({ title: "Erro ao excluir", description: err.message, variant: "destructive" });
+      toast({ title: "Erro ao excluir", description: translateError(err), variant: "destructive" });
     } finally {
       setDeleteLoading(false);
     }

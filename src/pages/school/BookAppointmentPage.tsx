@@ -13,6 +13,7 @@ import { CalendarDays, Clock, User, Phone, Info, ChevronDown, ChevronUp, Users }
 import { format, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Tables } from "@/integrations/supabase/types";
+import { translateError } from "@/lib/errorTranslations";
 
 type Department = Tables<"departments">;
 type Timeslot = Tables<"timeslots">;
@@ -114,7 +115,7 @@ export default function BookAppointmentPage() {
       requested_attendant_id: requestedAttendantId === "any" || !requestedAttendantId ? null : requestedAttendantId,
     });
     if (error) {
-      toast({ title: "Falha no agendamento", description: error.message, variant: "destructive" });
+      toast({ title: "Falha no agendamento", description: translateError(error), variant: "destructive" });
     } else {
       toast({ title: "Agendamento realizado com sucesso!" });
       setDescription("");

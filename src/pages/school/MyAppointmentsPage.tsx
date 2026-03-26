@@ -10,6 +10,7 @@ import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Star } from "lucide-react";
+import { translateError } from "@/lib/errorTranslations";
 
 interface Appointment {
   id: string;
@@ -62,7 +63,7 @@ export default function MyAppointmentsPage() {
       .order("created_at", { ascending: false });
 
     if (error) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Erro", description: translateError(error), variant: "destructive" });
     } else {
       setAppointments(data || []);
     }
@@ -116,7 +117,7 @@ export default function MyAppointmentsPage() {
       toast({ title: "Sucesso", description: "Agendamento cancelado." });
       fetchAppointments();
     } catch (error) {
-      toast({ title: "Erro", description: (error as Error).message, variant: "destructive" });
+      toast({ title: "Erro", description: translateError(error), variant: "destructive" });
     }
   };
 
@@ -161,7 +162,7 @@ export default function MyAppointmentsPage() {
       fetchAppointments(); // Atualiza a tela
 
     } catch (error) {
-      toast({ title: "Erro", description: (error as Error).message, variant: "destructive" });
+      toast({ title: "Erro", description: translateError(error), variant: "destructive" });
     }
   };
 

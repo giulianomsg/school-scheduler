@@ -13,6 +13,7 @@ import { format, isPast, parseISO, addHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { translateError } from "@/lib/errorTranslations";
 
 export default function TimeslotsPage() {
   const { user, profile } = useAuth();
@@ -36,7 +37,7 @@ export default function TimeslotsPage() {
       .order("start_time", { ascending: true });
 
     if (error) {
-      toast({ title: "Erro ao buscar horários", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao buscar horários", description: translateError(error), variant: "destructive" });
     } else {
       setTimeslots(slots || []);
     }
@@ -129,7 +130,7 @@ export default function TimeslotsPage() {
       setEndTime("");
       fetchTimeslots(departmentId);
     } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Erro", description: translateError(error), variant: "destructive" });
     }
   };
 
@@ -167,7 +168,7 @@ export default function TimeslotsPage() {
       toast({ title: "Limpeza concluída", description: `${expiredUnusedIds.length} horários ociosos foram apagados com sucesso.` });
       fetchTimeslots(departmentId!);
     } catch (error: any) {
-      toast({ title: "Erro", description: error.message, variant: "destructive" });
+      toast({ title: "Erro", description: translateError(error), variant: "destructive" });
     }
   };
 

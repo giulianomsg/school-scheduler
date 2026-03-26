@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
 import { Building2, Lock } from "lucide-react";
+import { translateError } from "@/lib/errorTranslations";
 
 export default function SetPassword() {
   const [password, setPassword] = useState("");
@@ -50,7 +51,7 @@ export default function SetPassword() {
     } catch (error: any) {
       toast({
         title: "Erro ao definir senha",
-        description: error.message,
+        description: translateError(error),
         variant: "destructive",
       });
     } finally {

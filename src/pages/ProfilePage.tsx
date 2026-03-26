@@ -11,6 +11,7 @@ import { Save } from "lucide-react";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
 import { Badge } from "@/components/ui/badge";
+import { translateError } from "@/lib/errorTranslations";
 
 function SchoolUnitDisplay({ schoolUnitId }: { schoolUnitId: string }) {
   const [name, setName] = useState("");
@@ -63,7 +64,7 @@ export default function ProfilePage() {
       })
       .eq("id", user.id);
     if (error) {
-      toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao salvar", description: translateError(error), variant: "destructive" });
     } else {
       toast({ title: "Perfil atualizado com sucesso" });
     }

@@ -12,6 +12,7 @@ import { CalendarDays, Clock, Users, Star, Search, AlertCircle, Phone, Building 
 import { format, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
+import { translateError } from "@/lib/errorTranslations";
 
 interface DepartmentAppointment {
   id: string;
@@ -141,7 +142,7 @@ export default function DepartmentDashboard() {
 
       toast({ title: "Sucesso", description: "Agendamento cancelado e escola notificada." });
       fetchData();
-    } catch (error: any) { toast({ title: "Erro", description: error.message, variant: "destructive" }); }
+    } catch (error: any) { toast({ title: "Erro", description: translateError(error), variant: "destructive" }); }
   };
 
   const handleMarkNoShow = async (appointmentId: string) => {

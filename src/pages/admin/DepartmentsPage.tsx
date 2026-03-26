@@ -13,6 +13,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Department = Tables<"departments">;
 type Profile = Tables<"profiles">;
+import { translateError } from "@/lib/errorTranslations";
 
 export default function DepartmentsPage() {
   const [departments, setDepartments] = useState<(Department & { head?: Profile })[]>([]);
@@ -56,14 +57,14 @@ export default function DepartmentsPage() {
         .from("departments")
         .update({ name, head_id: headId === "none" ? null : headId })
         .eq("id", editingDept.id);
-      if (error) { toast({ title: "Erro ao atualizar", description: error.message, variant: "destructive" }); return; }
+      if (error) { toast({ title: "Erro ao atualizar", description: translateError(error), variant: "destructive" }); return; }
     } else {
       const { data, error } = await supabase
         .from("departments")
         .insert({ name, head_id: headId === "none" ? null : headId })
         .select()
         .single();
-      if (error) { toast({ title: "Erro ao criar", description: error.message, variant: "destructive" }); return; }
+      if (error) { toast({ title: "Erro ao criar", description: translateError(error), variant: "destructive" }); return; }
       savedDeptId = data.id;
     }
 
@@ -82,7 +83,7 @@ export default function DepartmentsPage() {
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("departments").delete().eq("id", id);
-    if (error) { toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }); return; }
+    if (error) { toast({ title: "Erro ao excluir", description: translateError(error), variant: "destructive" }); return; }
     toast({ title: "Setor excluído" });
     fetchData();
   };
