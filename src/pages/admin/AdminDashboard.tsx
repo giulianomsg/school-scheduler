@@ -53,6 +53,10 @@ export default function AdminDashboard() {
     (appt) => isToday(new Date(appt.timeslots.start_time))
   );
 
+  const futureAppointments = allAppointments.filter(
+    (appt) => new Date(appt.timeslots.start_time) > now && !isToday(new Date(appt.timeslots.start_time)) && appt.status === "active"
+  ).sort((a, b) => new Date(a.timeslots.start_time).getTime() - new Date(b.timeslots.start_time).getTime());
+
   const historyAppointments = allAppointments.filter(
     (appt) => ["completed", "cancelled", "no-show"].includes(appt.status)
   );
@@ -86,7 +90,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const renderAppointmentCard = (appt: any, type: "pending" | "today" | "history") => {
+  const renderAppointmentCard = (appt: any, type: "pending" | "today" | "history" | "future") => {
     const deptName = appt.timeslots?.departments?.name || "Setor Indefinido";
     const schoolName = appt.profiles?.unidades_escolares?.nome_escola || "Escola não identificada";
     const schoolPhone = appt.profiles?.unidades_escolares?.telefone || "";
@@ -248,11 +252,12 @@ export default function AdminDashboard() {
         <p className="text-center text-muted-foreground py-8">A carregar dados de toda a rede...</p>
       ) : (
         <Tabs defaultValue="today" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="pending" className="relative">
               Atrasos de Setores {pendingAppointments.length > 0 && <span className="ml-2 flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] text-white">{pendingAppointments.length}</span>}
             </TabsTrigger>
             <TabsTrigger value="today">Movimento de Hoje</TabsTrigger>
+            <TabsTrigger value="future">Futuros</TabsTrigger>
             <TabsTrigger value="history">Auditoria Geral</TabsTrigger>
           </TabsList>
 
@@ -262,6 +267,10 @@ export default function AdminDashboard() {
 
           <TabsContent value="today" className="space-y-4">
             {todayAppointments.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhum atendimento na rede hoje.</p> : todayAppointments.map(a => renderAppointmentCard(a, "today"))}
+          </TabsContent>
+
+          <TabsContent value="future" className="space-y-4">
+            {futureAppointments.length === 0 ? <p className="text-center text-muted-foreground py-8">Nenhum agendamento futuro encontrado.</p> : futureAppointments.map(a => renderAppointmentCard(a, "future"))}
           </TabsContent>
 
           <TabsContent value="history" className="space-y-4">
