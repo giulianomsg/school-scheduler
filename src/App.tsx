@@ -13,6 +13,7 @@ import Index from "@/pages/Index";
 import DepartmentsPage from "@/pages/admin/DepartmentsPage";
 import UsersPage from "@/pages/admin/UsersPage";
 import SchoolUnitsPage from "@/pages/admin/SchoolUnitsPage";
+import AdminCalendarPage from "@/pages/admin/AdminCalendarPage";
 import ProfilePage from "@/pages/ProfilePage";
 import TimeslotsPage from "@/pages/department/TimeslotsPage";
 import CalendarPage from "@/pages/department/CalendarPage";
@@ -42,6 +43,7 @@ const App = () => (
             <Route path="/departments" element={<ProtectedRoute allowedRoles={["admin"]}><AppLayout><DepartmentsPage /></AppLayout></ProtectedRoute>} />
             <Route path="/school-units" element={<ProtectedRoute allowedRoles={["admin"]}><AppLayout><SchoolUnitsPage /></AppLayout></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute allowedRoles={["admin"]}><AppLayout><UsersPage /></AppLayout></ProtectedRoute>} />
+            <Route path="/admin/calendar" element={<ProtectedRoute allowedRoles={["admin"]}><AppLayout><AdminCalendarPage /></AppLayout></ProtectedRoute>} />
 
             {/* Department routes */}
             <Route path="/timeslots" element={<ProtectedRoute allowedRoles={["department", "coordinator"]}><AppLayout><TimeslotsPage /></AppLayout></ProtectedRoute>} />

@@ -172,6 +172,7 @@ function getNavItems(role?: string) {
       { href: "/departments", label: "Setores", icon: Building2 },
       { href: "/school-units", label: "Unidades Escolares", icon: School },
       { href: "/users", label: "Usuários", icon: Users },
+      { href: "/admin/calendar", label: "Calendário Global", icon: CalendarDays },
       { href: "/profile", label: "Meu Perfil", icon: User }
     );
   } else if (role === "department" || role === "coordinator") {

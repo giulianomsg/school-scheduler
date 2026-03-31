@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
-import { Clock, Users, Star, Search, AlertCircle, Phone, Building, Briefcase, Activity } from "lucide-react";
+import { Clock, Users, Star, Search, AlertCircle, Phone, Building, Briefcase, Activity, CalendarDays } from "lucide-react";
 import { format, isToday } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -222,11 +223,25 @@ export default function AdminDashboard() {
         <p className="text-muted-foreground">Visão global de todos os setores e atendimentos da Secretaria.</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">NPS Global</CardTitle></CardHeader><CardContent className="text-3xl font-bold flex items-center gap-2">{avgRating} <Star className="w-6 h-6 fill-amber-400 text-amber-400" /></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Faltas Totais</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-red-600">{noShowCount}</CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Escolas na Rede</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-blue-600">{stats.schools}</CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Setores Ativos</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-indigo-600">{stats.departments}</CardContent></Card>
+        <Card className="border-sidebar-accent shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm text-muted-foreground flex items-center justify-between">
+              Agendamentos
+              <CalendarDays className="h-4 w-4 text-muted-foreground" />
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-1">
+            <div className="text-3xl font-bold text-slate-700">{allAppointments.length}</div>
+            <Link to="/admin/calendar" className="text-[11px] font-medium text-primary hover:underline flex items-center gap-1 mt-1">
+              Ver calendário global <Activity className="w-3 h-3" />
+            </Link>
+          </CardContent>
+        </Card>
       </div>
 
       {loading ? (
