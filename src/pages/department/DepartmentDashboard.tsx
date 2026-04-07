@@ -121,9 +121,12 @@ export default function DepartmentDashboard() {
 
   const completedCount = historyAppointments.filter(a => a.status === "completed").length;
   const noShowCount = historyAppointments.filter(a => a.status === "no-show").length;
+  const openAppointmentsCount = allAppointments.filter(a => a.status === "active").length;
   const ratings = historyAppointments.filter(a => a.status === "completed" && a.rating > 0).map(a => a.rating);
   const avgRating = ratings.length > 0 ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : "N/A";
 
+  // ... (keeping other handlers the same)
+  // Re-declare handleSectorCancel and handleMarkNoShow due to replace boundary requirements
   const handleSectorCancel = async (appointmentId: string, schoolUserId: string) => {
     const reason = window.prompt("Digite o motivo do cancelamento (Obrigatório para notificar a escola):");
     if (!reason || reason.trim() === "") {
@@ -224,7 +227,7 @@ export default function DepartmentDashboard() {
               </div>
 
               {(directorPhone || schoolPhone) && (
-                <div className="flex flex-wrap items-center gap-4 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-4">
+                 <div className="flex flex-wrap items-center gap-4 border-t sm:border-t-0 sm:border-l border-slate-200 pt-2 sm:pt-0 sm:pl-4">
                   {directorPhone && (
                     <a href={`https://wa.me/55${directorPhone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 text-green-700 hover:underline">
                       <Phone className="w-4 h-4" />
@@ -305,7 +308,7 @@ export default function DepartmentDashboard() {
                   return (
                     <div className={`mt-2 p-3 rounded-md border-l-4 border-y border-r flex flex-col gap-2 ${colorClass}`}>
                       <div className="flex items-center gap-2">
-                        <strong className="font-semibold text-sm">Avaliação da Escola (Média {appt.rating}/5):</strong>
+                         <strong className="font-semibold text-sm">Avaliação da Escola (Média {appt.rating}/5):</strong>
                         <div className="flex items-center gap-0.5">
                           {[...Array(5)].map((_, i) => (
                             <Star
@@ -362,11 +365,12 @@ export default function DepartmentDashboard() {
         <p className="text-muted-foreground">{departmentName || "Carregando..."}</p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Em Aberto</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-blue-600">{openAppointmentsCount}</CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Avaliação Média</CardTitle></CardHeader><CardContent className="text-3xl font-bold flex items-center gap-2">{avgRating} <Star className="w-6 h-6 fill-amber-400 text-amber-400" /></CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Concluídos</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-green-600">{completedCount}</CardContent></Card>
         <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Taxa de Faltas</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-red-600">{noShowCount}</CardContent></Card>
-        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Horários Abertos</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-indigo-600">{stats.availableSlots}</CardContent></Card>
+        <Card><CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Horários Livres</CardTitle></CardHeader><CardContent className="text-3xl font-bold text-indigo-600">{stats.availableSlots}</CardContent></Card>
       </div>
 
       <Tabs defaultValue="today" className="w-full">
