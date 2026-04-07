@@ -15,22 +15,8 @@ export default function SetPassword() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const searchParams = new URLSearchParams(window.location.search);
-    
-    const type = hashParams.get("type") || searchParams.get("type");
-    const code = searchParams.get("code");
-
-    // Do not redirect if we have a valid auth token processing in the URL
-    if (type !== "invite" && type !== "recovery" && !code) {
-      supabase.auth.getSession().then(({ data }) => {
-        if (!data.session) {
-          navigate("/login");
-        }
-      });
-    }
-  }, [navigate]);
+  // Rota pública. O usuário definirá a senha; se o token for inválido, o backend recusará.
+  // Deixamos o supabase-js lidar com o envio da nova senha usando a sessão em memória estabelecida pelo clique no link.
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
