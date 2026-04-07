@@ -49,6 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (event === "PASSWORD_RECOVERY") {
+          // Garante imperativamente o redirecionamento caso o Supabase pode a rota `/set-password` nativa.
+          window.location.href = "/set-password";
+          return;
+        }
         if (event === "TOKEN_REFRESHED" && !session) {
           // Token rejeitado (usuário suspenso) — forçar logout
           await supabase.auth.signOut();

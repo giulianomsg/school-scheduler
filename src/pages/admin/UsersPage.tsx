@@ -454,11 +454,8 @@ export default function UsersPage() {
   const handleSendRecoveryEmail = async (p: Profile) => {
     setActionLoading(p.id);
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(p.email, {
-        redirectTo: `${window.location.origin}/set-password`,
-      });
-      if (error) throw error;
-      toast({ title: "E-mail enviado", description: `E-mail de redefinição de senha enviado para ${p.email}.` });
+      const data = await callAdminAction({ action: "sendRecoveryEmail", email: p.email });
+      toast({ title: "E-mail enviado", description: data.message || `E-mail de redefinição de senha enviado para ${p.email}.` });
     } catch (err: any) {
       toast({ title: "Erro ao enviar e-mail", description: translateError(err), variant: "destructive" });
     } finally {
