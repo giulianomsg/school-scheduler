@@ -426,12 +426,17 @@ export default function UsersPage() {
     }
   };
 
-  // --- Generate Link ---
+  // --- Generate Link (Copy) ---
   const handleGenerateLink = async (p: Profile, linkType: "magiclink" | "recovery") => {
     setActionLoading(p.id);
     try {
-      const data = await callAdminAction({ action: "generateLink", email: p.email, linkType });
-      const label = linkType === "recovery" ? "Redefinição de Senha" : "Link Mágico";
+      const data = await callAdminAction({ 
+        action: "generateLink", 
+        email: p.email, 
+        linkType,
+        redirectTo: linkType === "recovery" ? `${window.location.origin}/set-password` : `${window.location.origin}/`
+      });
+      const label = linkType === "recovery" ? "Link de Redefinição" : "Link Mágico";
       if (data.link) {
         await navigator.clipboard.writeText(data.link);
         toast({ title: `${label} gerado`, description: "Link copiado para a área de transferência." });
@@ -440,6 +445,22 @@ export default function UsersPage() {
       }
     } catch (err: any) {
       toast({ title: "Erro ao gerar link", description: translateError(err), variant: "destructive" });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // --- Send Reset Email Directly ---
+  const handleSendRecoveryEmail = async (p: Profile) => {
+    setActionLoading(p.id);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(p.email, {
+        redirectTo: `${window.location.origin}/set-password`,
+      });
+      if (error) throw error;
+      toast({ title: "E-mail enviado", description: `E-mail de redefinição de senha enviado para ${p.email}.` });
+    } catch (err: any) {
+      toast({ title: "Erro ao enviar e-mail", description: translateError(err), variant: "destructive" });
     } finally {
       setActionLoading(null);
     }
@@ -933,10 +954,13 @@ export default function UsersPage() {
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleGenerateLink(p, "magiclink")}>
-                              <Mail className="mr-2 h-4 w-4" /> Enviar Link Mágico
+                              <Mail className="mr-2 h-4 w-4" /> Copiar Link Mágico
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleGenerateLink(p, "recovery")}>
-                              <RefreshCw className="mr-2 h-4 w-4" /> Enviar Redefinição de Senha
+                              <RefreshCw className="mr-2 h-4 w-4" /> Copiar Link Redefinição
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleSendRecoveryEmail(p)}>
+                              <Send className="mr-2 h-4 w-4" /> Enviar Redefinição por E-mail
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem onClick={() => handleSuspend(p)}>

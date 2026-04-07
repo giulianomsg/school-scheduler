@@ -98,11 +98,19 @@ Deno.serve(async (req) => {
       }
 
       case "generateLink": {
-        if (!email) throw new Error("email is required");
-        const type = linkType === "recovery" ? "recovery" : "magiclink";
+        const { email, linkType, redirectTo } = await req.json().catch(() => ({}));
+        // Use the destructuring from earlier if we parsed the whole body already at line 58
+        const reqBody = await req.clone().json().catch(() => ({}));
+        const reqEmail = email || reqBody.email;
+        const reqLinkType = linkType || reqBody.linkType;
+        const reqRedirectTo = redirectTo || reqBody.redirectTo;
+
+        if (!reqEmail) throw new Error("email is required");
+        const type = reqLinkType === "recovery" ? "recovery" : "magiclink";
         const { data, error } = await supabaseAdmin.auth.admin.generateLink({
           type,
-          email,
+          email: reqEmail,
+          options: reqRedirectTo ? { redirectTo: reqRedirectTo } : undefined,
         });
         if (error) throw error;
         result = {
