@@ -267,15 +267,19 @@ export default function TimeslotsPage() {
 
       if (sStart < oEnd && sEnd > oStart) {
         const otherLabel = `${format(new Date(oStart), "HH:mm")} - ${format(new Date(oEnd), "HH:mm")}`;
-        const hasOtherAppt = other.appointments && other.appointments.length > 0;
+        const hasOtherAppt = other.appointments && (Array.isArray(other.appointments) ? other.appointments.some((a: any) => a && a.status === "active") : other.appointments.status === "active");
+        const isOtherBooked = !other.is_available || hasOtherAppt;
         return {
           hasConflict: true,
           conflictingSlot: other,
-          message: `Sobreposição de horário com a vaga das ${otherLabel}${hasOtherAppt ? " (Reservada)" : " (Livre)"}.`
+          isOverlappedByBooked: isOtherBooked,
+          message: isOtherBooked
+            ? `Sobreposição de horário com agendamento ativo das ${otherLabel}.`
+            : `Sobreposição de horário com a vaga livre das ${otherLabel}.`
         };
       }
     }
-    return { hasConflict: false };
+    return { hasConflict: false, isOverlappedByBooked: false, message: "" };
   };
 
   const openRescheduleModal = (slot: any) => {
@@ -354,22 +358,28 @@ export default function TimeslotsPage() {
     if (!window.confirm("Tem certeza que deseja apagar este horário?")) return;
 
     try {
+      // Deleta agendamentos cancelados ou históricos órfãos dessa vaga para evitar erro de chave estrangeira
+      await supabase.from("appointments").delete().eq("timeslot_id", id).neq("status", "active");
+
       const { error } = await supabase.from("timeslots").delete().eq("id", id);
       if (error) throw error;
 
       toast({ title: "Sucesso", description: "Horário apagado." });
-      fetchTimeslots(departmentId!);
+      if (departmentId) fetchTimeslots(departmentId);
     } catch (error: any) {
-      toast({ title: "Erro", description: "Não é possível apagar um horário que já possui histórico.", variant: "destructive" });
+      toast({ title: "Erro ao apagar", description: translateError(error), variant: "destructive" });
     }
   };
 
   const handleBulkDeleteExpired = async () => {
     if (!window.confirm("Deseja apagar os horários expirados órfãos (que nunca tiveram agendamento)? Esta ação é irreversível.")) return;
 
-    // 💡 CORREÇÃO 2: Só apaga os que estão no passado, livres, e SEM histórico (appointments vazio)
+    // 💡 CORREÇÃO 2: Só apaga os que estão no passado, livres, e SEM agendamento ativo
     const expiredUnusedIds = timeslots
-      .filter(t => isPast(parseISO(t.start_time)) && t.is_available === true && (!t.appointments || t.appointments.length === 0))
+      .filter(t => {
+        const activeAppts = Array.isArray(t.appointments) ? t.appointments.filter((a: any) => a && a.status === "active") : [];
+        return isPast(parseISO(t.start_time)) && t.is_available === true && activeAppts.length === 0;
+      })
       .map(t => t.id);
 
     if (expiredUnusedIds.length === 0) {
@@ -378,11 +388,12 @@ export default function TimeslotsPage() {
     }
 
     try {
+      await supabase.from("appointments").delete().in("timeslot_id", expiredUnusedIds).neq("status", "active");
       const { error } = await supabase.from("timeslots").delete().in('id', expiredUnusedIds);
       if (error) throw error;
 
       toast({ title: "Limpeza concluída", description: `${expiredUnusedIds.length} horários ociosos foram apagados com sucesso.` });
-      fetchTimeslots(departmentId!);
+      if (departmentId) fetchTimeslots(departmentId);
     } catch (error: any) {
       toast({ title: "Erro", description: translateError(error), variant: "destructive" });
     }
@@ -406,24 +417,28 @@ export default function TimeslotsPage() {
   const pastGrouped = groupByDate(pastSlots);
 
   const SlotCard = ({ slot }: { slot: any }) => {
-    const hasHistory = slot.appointments && slot.appointments.length > 0;
-    const activeAppts = Array.isArray(slot.appointments) ? slot.appointments.filter((a: any) => a && a.status === "active") : (slot.appointments ? [slot.appointments] : []);
+    const activeAppts = Array.isArray(slot.appointments)
+      ? slot.appointments.filter((a: any) => a && a.status === "active")
+      : (slot.appointments && slot.appointments.status === "active" ? [slot.appointments] : []);
     const activeAppt = activeAppts[0];
     const schoolName = activeAppt?.profiles?.unidades_escolares?.nome_escola || activeAppt?.profiles?.name || activeAppt?.profiles?.email;
 
+    const isFreeSlot = slot.is_available && activeAppts.length === 0;
     const slotConflict = getSlotOverlapConflict(slot);
 
     return (
       <div className={`p-3 border rounded-md mb-2 flex flex-col justify-between gap-2 transition-all ${
         slotConflict.hasConflict
-          ? 'bg-red-50/60 border-red-300 ring-1 ring-red-400'
-          : slot.is_available
+          ? slotConflict.isOverlappedByBooked
+            ? 'bg-amber-50/70 border-amber-300 ring-1 ring-amber-400'
+            : 'bg-red-50/60 border-red-300 ring-1 ring-red-400'
+          : isFreeSlot
             ? 'bg-white'
             : 'bg-slate-50 border-slate-200'
       }`}>
         <div className="flex items-start justify-between gap-2">
           <div className="flex items-center gap-2.5">
-            <div className={`p-2 rounded-md ${slotConflict.hasConflict ? 'bg-red-100 text-red-700' : 'bg-indigo-50 text-indigo-600'}`}>
+            <div className={`p-2 rounded-md ${slotConflict.hasConflict ? (slotConflict.isOverlappedByBooked ? 'bg-amber-100 text-amber-700' : 'bg-red-100 text-red-700') : 'bg-indigo-50 text-indigo-600'}`}>
               <Clock className="w-5 h-5" />
             </div>
             <div>
@@ -431,9 +446,9 @@ export default function TimeslotsPage() {
                 {format(new Date(slot.start_time), "HH:mm")} - {format(new Date(slot.end_time), "HH:mm")}
               </p>
               <div className="flex flex-wrap items-center gap-1 mt-1">
-                {slot.is_available ? (
+                {isFreeSlot ? (
                   <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 text-[11px]">
-                    {hasHistory ? "Reciclado (Livre)" : "Livre"}
+                    Livre
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="text-slate-700 border-slate-300 bg-slate-100 text-[11px] font-medium">
@@ -447,22 +462,22 @@ export default function TimeslotsPage() {
                   </Badge>
                 )}
                 {slotConflict.hasConflict && (
-                  <Badge variant="destructive" className="bg-red-600 text-white text-[10px] animate-pulse">
-                    ⚠️ Choque no Setor
+                  <Badge variant="destructive" className={`${slotConflict.isOverlappedByBooked ? 'bg-amber-600' : 'bg-red-600'} text-white text-[10px]`}>
+                    {slotConflict.isOverlappedByBooked ? "⛔ Bloqueada por Agendamento" : "⚠️ Choque no Setor"}
                   </Badge>
                 )}
               </div>
             </div>
           </div>
 
-          {slot.is_available && !hasHistory && (
+          {isFreeSlot && (
             <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 shrink-0" onClick={() => handleDelete(slot.id)}>
               <Trash2 className="w-4 h-4" />
             </Button>
           )}
         </div>
 
-        {!slot.is_available && activeAppt && (
+        {!isFreeSlot && activeAppt && (
           <div className="bg-slate-100 p-2 rounded border border-slate-200 text-xs space-y-1 mt-1">
             <p className="font-semibold text-indigo-800 truncate">
               🏫 {schoolName || "Escola Agendada"}
@@ -474,13 +489,13 @@ export default function TimeslotsPage() {
         )}
 
         {slotConflict.hasConflict && (
-          <div className="bg-red-100/70 border border-red-200 p-2 rounded text-[11px] text-red-900 flex items-start gap-1.5 mt-1">
-            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+          <div className={`p-2 rounded text-[11px] flex items-start gap-1.5 mt-1 ${slotConflict.isOverlappedByBooked ? 'bg-amber-100/70 border border-amber-200 text-amber-900' : 'bg-red-100/70 border border-red-200 text-red-900'}`}>
+            <AlertCircle className={`w-4 h-4 shrink-0 mt-0.5 ${slotConflict.isOverlappedByBooked ? 'text-amber-600' : 'text-red-600'}`} />
             <span>{slotConflict.message}</span>
           </div>
         )}
 
-        {!slot.is_available && activeAppt && (
+        {!isFreeSlot && activeAppt && (
           <Button
             variant="outline"
             size="sm"

@@ -115,12 +115,11 @@ export default function BookAppointmentPage() {
 
     setLoadingSlots(true);
 
-    // Buscar Horários Disponíveis
+    // Buscar todos os Horários do Setor (livres e reservados) a partir de agora
     supabase
       .from("timeslots")
-      .select("*")
+      .select("*, appointments(*)")
       .eq("department_id", selectedDept)
-      .eq("is_available", true)
       .gte("start_time", new Date().toISOString())
       .order("start_time")
       .then(({ data }) => {
@@ -164,9 +163,8 @@ export default function BookAppointmentPage() {
       if (selectedDept) {
         const { data } = await supabase
           .from("timeslots")
-          .select("*")
+          .select("*, appointments(*)")
           .eq("department_id", selectedDept)
-          .eq("is_available", true)
           .gte("start_time", new Date().toISOString())
           .order("start_time");
         setTimeslots(data || []);
@@ -212,9 +210,8 @@ export default function BookAppointmentPage() {
       if (selectedDept) {
         const { data } = await supabase
           .from("timeslots")
-          .select("*")
+          .select("*, appointments(*)")
           .eq("department_id", selectedDept)
-          .eq("is_available", true)
           .gte("start_time", new Date().toISOString())
           .order("start_time");
         setTimeslots(data || []);
@@ -358,78 +355,116 @@ export default function BookAppointmentPage() {
 
                 {loadingSlots ? (
                   <p className="text-sm text-muted-foreground">Carregando...</p>
-                ) : timeslots.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhum horário disponível para este setor.</p>
-                ) : (
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {timeslots.map((ts) => {
-                      const requires24hAdvance = ts.requires_24h_advance;
-                      const hoursDiff = differenceInHours(new Date(ts.start_time), new Date());
-                      const isBlockedBy24hRule = requires24hAdvance && hoursDiff < 24;
-                      const dispMins = parseInt(displacementBuffer, 10) || 0;
-                      const conflictInfo = getSlotConflictInfo(ts, userActiveAppointments, dispMins);
+                ) : (() => {
+                  const bookedSlots = timeslots.filter((s: any) => {
+                    const activeAppts = Array.isArray(s.appointments) ? s.appointments.filter((a: any) => a && a.status === "active") : (s.appointments && s.appointments.status === "active" ? [s.appointments] : []);
+                    return !s.is_available || activeAppts.length > 0;
+                  });
 
-                      const isDisabled = isBlockedBy24hRule || conflictInfo.hasConflict;
+                  const availableSlots = timeslots.filter((s: any) => {
+                    const activeAppts = Array.isArray(s.appointments) ? s.appointments.filter((a: any) => a && a.status === "active") : (s.appointments && s.appointments.status === "active" ? [s.appointments] : []);
+                    return s.is_available && activeAppts.length === 0;
+                  });
 
-                      return (
-                        <button
-                          key={ts.id}
-                          onClick={() => !isDisabled && setSelectedSlot(ts.id)}
-                          disabled={isDisabled}
-                          className={`relative flex items-center justify-between rounded-lg border p-3 text-left transition-colors ${
-                            isDisabled
-                              ? "opacity-60 cursor-not-allowed bg-slate-50 border-slate-200"
-                              : selectedSlot === ts.id
-                                ? "border-primary bg-primary/5 ring-1 ring-primary"
-                                : "hover:border-primary/50"
-                          }`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <Clock className={`h-4 w-4 shrink-0 ${isDisabled ? 'text-slate-400' : 'text-muted-foreground'}`} />
-                            <div>
-                              <p className="text-sm font-medium">{format(new Date(ts.start_time), "dd/MM/yyyy", { locale: ptBR })}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {format(new Date(ts.start_time), "HH:mm")} - {format(new Date(ts.end_time), "HH:mm")}
-                              </p>
+                  if (availableSlots.length === 0) {
+                    return <p className="text-sm text-muted-foreground">Nenhum horário disponível para este setor.</p>;
+                  }
+
+                  return (
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                      {availableSlots.map((ts) => {
+                        const requires24hAdvance = ts.requires_24h_advance;
+                        const hoursDiff = differenceInHours(new Date(ts.start_time), new Date());
+                        const isBlockedBy24hRule = requires24hAdvance && hoursDiff < 24;
+                        const dispMins = parseInt(displacementBuffer, 10) || 0;
+                        const conflictInfo = getSlotConflictInfo(ts, userActiveAppointments, dispMins);
+
+                        const tsStart = new Date(ts.start_time).getTime();
+                        const tsEnd = new Date(ts.end_time).getTime();
+                        const isOverlappedByDeptBooking = bookedSlots.some((b: any) => {
+                          if (b.id === ts.id) return false;
+                          const bStart = new Date(b.start_time).getTime();
+                          const bEnd = new Date(b.end_time).getTime();
+                          return tsStart < bEnd && tsEnd > bStart;
+                        });
+
+                        const isDisabled = isBlockedBy24hRule || conflictInfo.hasConflict || isOverlappedByDeptBooking;
+
+                        return (
+                          <button
+                            key={ts.id}
+                            onClick={() => !isDisabled && setSelectedSlot(ts.id)}
+                            disabled={isDisabled}
+                            className={`relative flex items-center justify-between rounded-lg border p-3 text-left transition-colors ${
+                              isDisabled
+                                ? "opacity-60 cursor-not-allowed bg-slate-50 border-slate-200"
+                                : selectedSlot === ts.id
+                                  ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                  : "hover:border-primary/50"
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <Clock className={`h-4 w-4 shrink-0 ${isDisabled ? 'text-slate-400' : 'text-muted-foreground'}`} />
+                              <div>
+                                <p className="text-sm font-medium">{format(new Date(ts.start_time), "dd/MM/yyyy", { locale: ptBR })}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {format(new Date(ts.start_time), "HH:mm")} - {format(new Date(ts.end_time), "HH:mm")}
+                                </p>
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="flex items-center gap-1">
-                            {conflictInfo.hasConflict && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className={`p-1.5 rounded-full cursor-help ${conflictInfo.isOverlap ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
-                                      <Info className="w-4 h-4" />
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p className="text-xs max-w-xs">{conflictInfo.message}</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
+                            <div className="flex items-center gap-1">
+                              {isOverlappedByDeptBooking && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="bg-amber-100 p-1.5 rounded-full text-amber-700 cursor-help">
+                                        <Info className="w-4 h-4" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs max-w-xs">Indisponível: Este horário entra em choque com uma vaga já agendada no setor.</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
 
-                            {isBlockedBy24hRule && !conflictInfo.hasConflict && (
-                              <TooltipProvider>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="bg-slate-100 p-1.5 rounded-full text-slate-600 cursor-help">
-                                      <Info className="w-4 h-4" />
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent>
-                                    <p className="text-xs">Requer agendamento com 24h de antecedência.</p>
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
+                              {!isOverlappedByDeptBooking && conflictInfo.hasConflict && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className={`p-1.5 rounded-full cursor-help ${conflictInfo.isOverlap ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
+                                        <Info className="w-4 h-4" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs max-w-xs">{conflictInfo.message}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+
+                              {!isOverlappedByDeptBooking && !conflictInfo.hasConflict && isBlockedBy24hRule && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <div className="bg-slate-100 p-1.5 rounded-full text-slate-600 cursor-help">
+                                        <Info className="w-4 h-4" />
+                                      </div>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p className="text-xs">Requer agendamento com 24h de antecedência.</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </>
           )}
