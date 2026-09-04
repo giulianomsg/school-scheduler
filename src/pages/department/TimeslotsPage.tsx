@@ -383,12 +383,15 @@ export default function TimeslotsPage() {
     if (!window.confirm("Tem certeza que deseja apagar este horário?")) return;
 
     try {
-      // 1. Apaga quaisquer agendamentos (ativos, cancelados ou históricos) vinculados a esta vaga
-      await supabase.from("appointments").delete().eq("timeslot_id", id);
+      // 1. Tenta deletar via RPC definer para ignorar restrições RLS em tabelas secundárias
+      const { error: rpcError } = await supabase.rpc("delete_timeslot_cascade", { p_timeslot_id: id });
 
-      // 2. Apaga a vaga (timeslot)
-      const { error } = await supabase.from("timeslots").delete().eq("id", id);
-      if (error) throw error;
+      if (rpcError) {
+        // Fallback: Apaga via chamadas diretas
+        await supabase.from("appointments").delete().eq("timeslot_id", id);
+        const { error: deleteError } = await supabase.from("timeslots").delete().eq("id", id);
+        if (deleteError) throw deleteError;
+      }
 
       toast({ title: "Sucesso", description: "Horário apagado com sucesso." });
       if (departmentId) fetchTimeslots(departmentId);
@@ -414,12 +417,15 @@ export default function TimeslotsPage() {
     }
 
     try {
-      // 1. Apaga apontamentos vinculados a estes timeslots expirados
-      await supabase.from("appointments").delete().in("timeslot_id", expiredUnusedIds);
+      // 1. Tenta deletar em lote via RPC definer
+      const { error: rpcError } = await supabase.rpc("delete_timeslots_bulk_cascade", { p_timeslot_ids: expiredUnusedIds });
 
-      // 2. Apaga os timeslots
-      const { error } = await supabase.from("timeslots").delete().in('id', expiredUnusedIds);
-      if (error) throw error;
+      if (rpcError) {
+        // Fallback: Apaga via chamadas diretas
+        await supabase.from("appointments").delete().in("timeslot_id", expiredUnusedIds);
+        const { error: deleteError } = await supabase.from("timeslots").delete().in('id', expiredUnusedIds);
+        if (deleteError) throw deleteError;
+      }
 
       toast({ title: "Limpeza concluída", description: `${expiredUnusedIds.length} horários ociosos foram apagados com sucesso.` });
       if (departmentId) fetchTimeslots(departmentId);
