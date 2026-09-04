@@ -260,6 +260,11 @@ export default function TimeslotsPage() {
     const sStart = new Date(slot.start_time).getTime();
     const sEnd = new Date(slot.end_time).getTime();
 
+    const activeAppts = Array.isArray(slot.appointments)
+      ? slot.appointments.filter((a: any) => a && a.status === "active")
+      : (slot.appointments && slot.appointments.status === "active" ? [slot.appointments] : []);
+    const slotHasActiveAppt = !slot.is_available || activeAppts.length > 0;
+
     for (const other of timeslots) {
       if (other.id === slot.id) continue;
       const oStart = new Date(other.start_time).getTime();
@@ -267,19 +272,39 @@ export default function TimeslotsPage() {
 
       if (sStart < oEnd && sEnd > oStart) {
         const otherLabel = `${format(new Date(oStart), "HH:mm")} - ${format(new Date(oEnd), "HH:mm")}`;
-        const hasOtherAppt = other.appointments && (Array.isArray(other.appointments) ? other.appointments.some((a: any) => a && a.status === "active") : other.appointments.status === "active");
-        const isOtherBooked = !other.is_available || hasOtherAppt;
-        return {
-          hasConflict: true,
-          conflictingSlot: other,
-          isOverlappedByBooked: isOtherBooked,
-          message: isOtherBooked
-            ? `Sobreposição de horário com agendamento ativo das ${otherLabel}.`
-            : `Sobreposição de horário com a vaga livre das ${otherLabel}.`
-        };
+        const otherActiveAppts = Array.isArray(other.appointments)
+          ? other.appointments.filter((a: any) => a && a.status === "active")
+          : (other.appointments && other.appointments.status === "active" ? [other.appointments] : []);
+        const otherHasActiveAppt = !other.is_available || otherActiveAppts.length > 0;
+
+        if (slotHasActiveAppt) {
+          // Se esta vaga é reservada (tem agendamento ativo):
+          // Só exibe "Choque no Setor" se a vaga que está sobrepondo TAMBÉM tiver agendamento ativo!
+          if (otherHasActiveAppt) {
+            return {
+              hasConflict: true,
+              isDoubleBooking: true,
+              isOverlappedByBooked: false,
+              conflictingSlot: other,
+              message: `Choque de Agendamentos: Este agendamento sobrepõe outro agendamento ativo das ${otherLabel}.`
+            };
+          }
+        } else {
+          // Se esta vaga é LIVRE (sem agendamento ativo):
+          // Exibe "Bloqueada por Agendamento" se a vaga que está sobrepondo possuir agendamento ativo.
+          if (otherHasActiveAppt) {
+            return {
+              hasConflict: true,
+              isDoubleBooking: false,
+              isOverlappedByBooked: true,
+              conflictingSlot: other,
+              message: `Vaga livre bloqueada devido ao agendamento ativo das ${otherLabel}.`
+            };
+          }
+        }
       }
     }
-    return { hasConflict: false, isOverlappedByBooked: false, message: "" };
+    return { hasConflict: false, isDoubleBooking: false, isOverlappedByBooked: false, message: "" };
   };
 
   const openRescheduleModal = (slot: any) => {
@@ -510,7 +535,7 @@ export default function TimeslotsPage() {
     );
   };
 
-  const sectorConflicts = timeslots.filter(s => getSlotOverlapConflict(s).hasConflict);
+  const doubleBookingConflicts = timeslots.filter(s => getSlotOverlapConflict(s).isDoubleBooking);
 
   return (
     <div className="space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
@@ -533,16 +558,16 @@ export default function TimeslotsPage() {
         )}
       </div>
 
-      {sectorConflicts.length > 0 && (
+      {doubleBookingConflicts.length > 0 && (
         <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm flex items-center justify-between gap-3 animate-in fade-in">
           <div className="flex items-center gap-3">
             <AlertCircle className="w-6 h-6 text-red-600 shrink-0" />
             <div>
               <h4 className="font-semibold text-red-900 text-sm">
-                Atenção: Existem {sectorConflicts.length} vaga(s) com choque de horário neste setor!
+                Atenção: Existem {doubleBookingConflicts.length} agendamento(s) com choque no setor!
               </h4>
               <p className="text-xs text-red-700">
-                Horários sobrepostos foram destacados em vermelho abaixo. Utilize a opção "Alterar Horário" nas vagas reservadas para ajustá-las.
+                Agendamentos ativos sobrepostos foram destacados em vermelho. Utilize a opção "Alterar Horário" nas vagas reservadas para ajustá-los.
               </p>
             </div>
           </div>
