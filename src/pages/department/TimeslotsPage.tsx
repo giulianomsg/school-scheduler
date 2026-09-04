@@ -8,12 +8,22 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CalendarDays, Clock, Trash2, CalendarPlus, AlertCircle, CopyPlus, ShieldAlert } from "lucide-react";
-import { format, isPast, parseISO, addHours } from "date-fns";
+import { CalendarDays, Clock, Trash2, CalendarPlus, AlertCircle, CopyPlus, ShieldAlert, CalendarRange } from "lucide-react";
+import { format, isPast, parseISO, addHours, eachDayOfInterval, getDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { translateError } from "@/lib/errorTranslations";
+
+const DAYS_OF_WEEK = [
+  { id: 1, label: "Seg" },
+  { id: 2, label: "Ter" },
+  { id: 3, label: "Qua" },
+  { id: 4, label: "Qui" },
+  { id: 5, label: "Sex" },
+  { id: 6, label: "Sáb" },
+  { id: 0, label: "Dom" },
+];
 
 export default function TimeslotsPage() {
   const { user, profile } = useAuth();
@@ -21,11 +31,27 @@ export default function TimeslotsPage() {
   const [timeslots, setTimeslots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [creationMode, setCreationMode] = useState<"single" | "range">("single");
   const [date, setDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]);
+
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [duration, setDuration] = useState("30");
   const [requires24hAdvance, setRequires24hAdvance] = useState(true);
+
+  const toggleDay = (dayId: number) => {
+    if (selectedDays.includes(dayId)) {
+      setSelectedDays(selectedDays.filter((d) => d !== dayId));
+    } else {
+      setSelectedDays([...selectedDays, dayId]);
+    }
+  };
+
+  const selectWeekdays = () => setSelectedDays([1, 2, 3, 4, 5]);
+  const selectAllDays = () => setSelectedDays([0, 1, 2, 3, 4, 5, 6]);
 
   const fetchTimeslots = async (currentDeptId: string) => {
     setLoading(true);
@@ -68,56 +94,105 @@ export default function TimeslotsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!departmentId || !date || !startTime || !endTime || !duration) return;
+    if (!departmentId || !startTime || !endTime || !duration) return;
 
-    const startDateTime = new Date(`${date}T${startTime}:00`);
-    const endDateTime = new Date(`${date}T${endTime}:00`);
     const durationMins = parseInt(duration, 10);
-
-    if (startDateTime < new Date()) {
-      toast({ title: "Atenção", description: "Não é possível criar horários no passado.", variant: "destructive" });
-      return;
-    }
-
-    if (requires24hAdvance && startDateTime < addHours(new Date(), 24)) {
-      toast({
-        title: "Antecedência Inválida",
-        description: `Para exigir antecedência mínima, as vagas devem iniciar após ${format(addHours(new Date(), 24), "dd/MM/yyyy 'às' HH:mm")}.`,
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (endDateTime <= startDateTime) {
-      toast({ title: "Atenção", description: "O horário de término deve ser após o início.", variant: "destructive" });
-      return;
-    }
-
     if (durationMins < 5) {
       toast({ title: "Atenção", description: "A duração mínima do atendimento é de 5 minutos.", variant: "destructive" });
       return;
     }
 
-    let current = startDateTime;
-    const slotsToInsert = [];
+    let datesToProcess: string[] = [];
 
-    while (current < endDateTime) {
-      const next = new Date(current.getTime() + durationMins * 60000);
-      if (next > endDateTime) break;
+    if (creationMode === "single") {
+      if (!date) {
+        toast({ title: "Atenção", description: "Selecione a data do atendimento.", variant: "destructive" });
+        return;
+      }
+      datesToProcess = [date];
+    } else {
+      if (!startDate || !endDate) {
+        toast({ title: "Atenção", description: "Selecione as datas inicial e final do período.", variant: "destructive" });
+        return;
+      }
+      if (endDate < startDate) {
+        toast({ title: "Atenção", description: "A data final deve ser igual ou posterior à data inicial.", variant: "destructive" });
+        return;
+      }
+      if (selectedDays.length === 0) {
+        toast({ title: "Atenção", description: "Selecione ao menos um dia da semana.", variant: "destructive" });
+        return;
+      }
 
-      slotsToInsert.push({
-        department_id: departmentId,
-        start_time: current.toISOString(),
-        end_time: next.toISOString(),
-        is_available: true,
-        requires_24h_advance: requires24hAdvance,
-      });
+      const startObj = parseISO(startDate);
+      const endObj = parseISO(endDate);
+      const intervalDays = eachDayOfInterval({ start: startObj, end: endObj });
 
-      current = next;
+      datesToProcess = intervalDays
+        .filter((dayDate) => selectedDays.includes(getDay(dayDate)))
+        .map((dayDate) => format(dayDate, "yyyy-MM-dd"));
+    }
+
+    if (datesToProcess.length === 0) {
+      toast({ title: "Atenção", description: "Nenhuma data no período corresponde aos dias da semana escolhidos.", variant: "destructive" });
+      return;
+    }
+
+    const now = new Date();
+    const minAdvanceTime = addHours(now, 24);
+    const slotsToInsert: any[] = [];
+    let skippedPastCount = 0;
+    let skippedAdvanceCount = 0;
+
+    for (const targetDateStr of datesToProcess) {
+      const startDateTime = new Date(`${targetDateStr}T${startTime}:00`);
+      const endDateTime = new Date(`${targetDateStr}T${endTime}:00`);
+
+      if (endDateTime <= startDateTime) {
+        toast({ title: "Atenção", description: "O horário de término deve ser após o início.", variant: "destructive" });
+        return;
+      }
+
+      let current = startDateTime;
+
+      while (current < endDateTime) {
+        const next = new Date(current.getTime() + durationMins * 60000);
+        if (next > endDateTime) break;
+
+        if (current < now) {
+          skippedPastCount++;
+          current = next;
+          continue;
+        }
+
+        if (requires24hAdvance && current < minAdvanceTime) {
+          skippedAdvanceCount++;
+          current = next;
+          continue;
+        }
+
+        slotsToInsert.push({
+          department_id: departmentId,
+          start_time: current.toISOString(),
+          end_time: next.toISOString(),
+          is_available: true,
+          requires_24h_advance: requires24hAdvance,
+        });
+
+        current = next;
+      }
     }
 
     if (slotsToInsert.length === 0) {
-      toast({ title: "Atenção", description: "O período é menor que a duração de um atendimento.", variant: "destructive" });
+      if (skippedPastCount > 0 || skippedAdvanceCount > 0) {
+        toast({
+          title: "Atenção",
+          description: "Nenhuma vaga válida foi gerada. As vagas no passado ou com menos de 24h de antecedência foram ignoradas.",
+          variant: "destructive"
+        });
+      } else {
+        toast({ title: "Atenção", description: "O período informado é menor que a duração de um atendimento.", variant: "destructive" });
+      }
       return;
     }
 
@@ -125,7 +200,14 @@ export default function TimeslotsPage() {
       const { error } = await supabase.from("timeslots").insert(slotsToInsert);
       if (error) throw error;
 
-      toast({ title: "Agenda Gerada com Sucesso!", description: `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos.` });
+      const daysCount = datesToProcess.length;
+      toast({
+        title: "Agenda Gerada com Sucesso!",
+        description: creationMode === "single"
+          ? `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos.`
+          : `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos distribuídas em ${daysCount} dia(s).`,
+      });
+
       setStartTime("");
       setEndTime("");
       fetchTimeslots(departmentId);
@@ -260,35 +342,160 @@ export default function TimeslotsPage() {
         </CardHeader>
         <CardContent className="pt-6">
           <form onSubmit={handleCreate} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Data do Atendimento</label>
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} required min={format(now, "yyyy-MM-dd")} className="bg-white" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Hora Início (Ex: 08:00)</label>
-                <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required className="bg-white" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Hora Fim (Ex: 12:00)</label>
-                <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required className="bg-white" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">Duração (minutos)</label>
-                <Input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} required className="bg-white" placeholder="Ex: 30" />
-              </div>
+            {/* Seletor de Modo de Criação */}
+            <div className="flex flex-wrap items-center gap-2 mb-2 p-1 bg-slate-100 rounded-lg w-fit">
+              <button
+                type="button"
+                onClick={() => setCreationMode("single")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  creationMode === "single"
+                    ? "bg-white text-indigo-700 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <CalendarPlus className="w-3.5 h-3.5" />
+                Dia Único
+              </button>
+              <button
+                type="button"
+                onClick={() => setCreationMode("range")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                  creationMode === "range"
+                    ? "bg-white text-indigo-700 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <CalendarRange className="w-3.5 h-3.5" />
+                Intervalo de Dias (Range)
+              </button>
             </div>
-            <div className="flex items-center space-x-2 pt-2 pb-1 bg-white/50 p-3 rounded border border-indigo-50 w-max">
-              <Switch
-                id="requires-24h"
-                checked={requires24hAdvance}
-                onCheckedChange={setRequires24hAdvance}
-              />
-              <Label htmlFor="requires-24h" className="text-sm text-slate-700 cursor-pointer">
-                Exigir antecedência mínima de 24 horas para escolas agendarem esta vaga
-              </Label>
-            </div>
-            <div className="flex justify-end pt-2">
+
+            {/* Inputs de Data conforme modo */}
+            {creationMode === "single" ? (
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Data do Atendimento</label>
+                  <Input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                    required={creationMode === "single"}
+                    min={format(now, "yyyy-MM-dd")}
+                    className="bg-white"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Hora Início (Ex: 08:00)</label>
+                  <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required className="bg-white" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Hora Fim (Ex: 12:00)</label>
+                  <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required className="bg-white" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Duração (minutos)</label>
+                  <Input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} required className="bg-white" placeholder="Ex: 30" />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 border border-indigo-100 p-4 rounded-lg bg-indigo-50/30">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">Data Inicial</label>
+                    <Input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      required={creationMode === "range"}
+                      min={format(now, "yyyy-MM-dd")}
+                      className="bg-white"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">Data Final</label>
+                    <Input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      required={creationMode === "range"}
+                      min={startDate || format(now, "yyyy-MM-dd")}
+                      className="bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <label className="text-sm font-medium text-slate-700">Dias da Semana Atendidos</label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={selectWeekdays}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline"
+                      >
+                        Dias Úteis (Seg-Sex)
+                      </button>
+                      <span className="text-slate-300">|</span>
+                      <button
+                        type="button"
+                        onClick={selectAllDays}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 font-medium hover:underline"
+                      >
+                        Todos os Dias
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {DAYS_OF_WEEK.map((d) => {
+                      const isSelected = selectedDays.includes(d.id);
+                      return (
+                        <button
+                          key={d.id}
+                          type="button"
+                          onClick={() => toggleDay(d.id)}
+                          className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition-all ${
+                            isSelected
+                              ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
+                              : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          {d.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-indigo-100/60">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">Hora Início (Ex: 08:00)</label>
+                    <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required className="bg-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">Hora Fim (Ex: 12:00)</label>
+                    <Input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required className="bg-white" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">Duração (minutos)</label>
+                    <Input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} required className="bg-white" placeholder="Ex: 30" />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+              <div className="flex items-center space-x-2 bg-white/50 p-3 rounded border border-indigo-50 w-max">
+                <Switch
+                  id="requires-24h"
+                  checked={requires24hAdvance}
+                  onCheckedChange={setRequires24hAdvance}
+                />
+                <Label htmlFor="requires-24h" className="text-sm text-slate-700 cursor-pointer">
+                  Exigir antecedência mínima de 24 horas para escolas agendarem esta vaga
+                </Label>
+              </div>
+
               <Button type="submit" className="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 flex items-center gap-2">
                 <CopyPlus className="w-4 h-4" />
                 Gerar Vagas Automaticamente
