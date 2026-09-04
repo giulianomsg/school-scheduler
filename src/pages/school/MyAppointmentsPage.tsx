@@ -35,6 +35,8 @@ interface Appointment {
   [key: string]: unknown; // fallback for missing fields
 }
 
+import { checkAppointmentConflict, type ConflictResult } from "@/lib/conflictUtils";
+
 export default function MyAppointmentsPage() {
   const { user } = useAuth();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -74,6 +76,19 @@ export default function MyAppointmentsPage() {
     fetchAppointments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  const conflictMap = useMemo(() => {
+    const map: Record<string, ConflictResult> = {};
+    const activeAppts = appointments.filter((a) => a.status === "active");
+    for (const appt of activeAppts) {
+      if (!appt.timeslots) continue;
+      const res = checkAppointmentConflict(appt.id, appt.timeslots, activeAppts as any[], 15);
+      if (res.hasConflict) {
+        map[appt.id] = res;
+      }
+    }
+    return map;
+  }, [appointments]);
 
   const handleCancel = async (id: string, startTime: string) => {
     const start = new Date(startTime);
@@ -197,11 +212,28 @@ export default function MyAppointmentsPage() {
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold text-lg">{appt.timeslots?.departments?.name}</h3>
                     {statusBadge(appt.status)}
+                    {conflictMap[appt.id]?.hasConflict && (
+                      <Badge variant="destructive" className="bg-red-600 text-white font-semibold animate-pulse">
+                        ⚠️ Choque de Horário
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm text-muted-foreground">{appt.description}</p>
                   <p className="text-sm font-medium">
                     {format(new Date(appt.timeslots.start_time), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
                   </p>
+
+                  {/* Alerta Visual de Conflito */}
+                  {conflictMap[appt.id]?.hasConflict && (
+                    <div className="bg-red-50 border border-red-200 text-red-900 p-3 rounded-md text-xs space-y-1 my-2">
+                      <p className="font-semibold flex items-center gap-1.5 text-red-800">
+                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                        Choque de horário identificado!
+                      </p>
+                      <p>{conflictMap[appt.id].message}</p>
+                      <p className="text-[11px] text-red-700 italic">O setor responsável pode ajustar o horário para sanar este conflito.</p>
+                    </div>
+                  )}
 
                   {/* Exibição do Atendente Solicitado (Opcional) */}
                   {appt.requested_attendant && (
