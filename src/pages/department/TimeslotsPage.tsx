@@ -40,6 +40,7 @@ export default function TimeslotsPage() {
   const [startTime, setStartTime] = useState("");
   const [endTime, setEndTime] = useState("");
   const [duration, setDuration] = useState("30");
+  const [bufferMinutes, setBufferMinutes] = useState("0");
   const [requires24hAdvance, setRequires24hAdvance] = useState(true);
 
   const toggleDay = (dayId: number) => {
@@ -97,6 +98,7 @@ export default function TimeslotsPage() {
     if (!departmentId || !startTime || !endTime || !duration) return;
 
     const durationMins = parseInt(duration, 10);
+    const bufferMins = parseInt(bufferMinutes, 10) || 0;
     if (durationMins < 5) {
       toast({ title: "Atenção", description: "A duração mínima do atendimento é de 5 minutos.", variant: "destructive" });
       return;
@@ -161,13 +163,13 @@ export default function TimeslotsPage() {
 
         if (current < now) {
           skippedPastCount++;
-          current = next;
+          current = new Date(next.getTime() + bufferMins * 60000);
           continue;
         }
 
         if (requires24hAdvance && current < minAdvanceTime) {
           skippedAdvanceCount++;
-          current = next;
+          current = new Date(next.getTime() + bufferMins * 60000);
           continue;
         }
 
@@ -179,7 +181,7 @@ export default function TimeslotsPage() {
           requires_24h_advance: requires24hAdvance,
         });
 
-        current = next;
+        current = new Date(next.getTime() + bufferMins * 60000);
       }
     }
 
@@ -201,11 +203,12 @@ export default function TimeslotsPage() {
       if (error) throw error;
 
       const daysCount = datesToProcess.length;
+      const bufferInfo = bufferMins > 0 ? ` com ${bufferMins} min de intervalo para deslocamento` : "";
       toast({
         title: "Agenda Gerada com Sucesso!",
         description: creationMode === "single"
-          ? `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos.`
-          : `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos distribuídas em ${daysCount} dia(s).`,
+          ? `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos${bufferInfo}.`
+          : `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos${bufferInfo} distribuídas em ${daysCount} dia(s).`,
       });
 
       setStartTime("");
@@ -372,7 +375,7 @@ export default function TimeslotsPage() {
 
             {/* Inputs de Data conforme modo */}
             {creationMode === "single" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">Data do Atendimento</label>
                   <Input
@@ -395,6 +398,22 @@ export default function TimeslotsPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">Duração (minutos)</label>
                   <Input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} required className="bg-white" placeholder="Ex: 30" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">Intervalo p/ Deslocamento</label>
+                  <Select value={bufferMinutes} onValueChange={setBufferMinutes}>
+                    <SelectTrigger className="bg-white">
+                      <SelectValue placeholder="Intervalo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0">0 min (Sem pausa)</SelectItem>
+                      <SelectItem value="5">5 min</SelectItem>
+                      <SelectItem value="10">10 min</SelectItem>
+                      <SelectItem value="15">15 min (Recomendado)</SelectItem>
+                      <SelectItem value="20">20 min</SelectItem>
+                      <SelectItem value="30">30 min</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
             ) : (
@@ -467,7 +486,7 @@ export default function TimeslotsPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-indigo-100/60">
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 pt-2 border-t border-indigo-100/60">
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700">Hora Início (Ex: 08:00)</label>
                     <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required className="bg-white" />
@@ -479,6 +498,22 @@ export default function TimeslotsPage() {
                   <div className="space-y-2">
                     <label className="text-sm font-medium text-slate-700">Duração (minutos)</label>
                     <Input type="number" min="5" step="5" value={duration} onChange={(e) => setDuration(e.target.value)} required className="bg-white" placeholder="Ex: 30" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">Intervalo p/ Deslocamento</label>
+                    <Select value={bufferMinutes} onValueChange={setBufferMinutes}>
+                      <SelectTrigger className="bg-white">
+                        <SelectValue placeholder="Intervalo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">0 min (Sem pausa)</SelectItem>
+                        <SelectItem value="5">5 min</SelectItem>
+                        <SelectItem value="10">10 min</SelectItem>
+                        <SelectItem value="15">15 min (Recomendado)</SelectItem>
+                        <SelectItem value="20">20 min</SelectItem>
+                        <SelectItem value="30">30 min</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>

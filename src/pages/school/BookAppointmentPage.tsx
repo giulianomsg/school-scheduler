@@ -31,10 +31,72 @@ export default function BookAppointmentPage() {
   const [booking, setBooking] = useState(false);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [expandedActivities, setExpandedActivities] = useState<Record<string, boolean>>({});
+  const [userActiveAppointments, setUserActiveAppointments] = useState<any[]>([]);
+  const [displacementBuffer, setDisplacementBuffer] = useState<string>("15");
 
   const toggleActivities = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     setExpandedActivities(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const fetchUserActiveAppointments = async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from("appointments")
+      .select("id, timeslots!inner(id, start_time, end_time, department_id, departments(name))")
+      .eq("requester_id", user.id)
+      .eq("status", "active");
+    setUserActiveAppointments(data || []);
+  };
+
+  useEffect(() => {
+    fetchUserActiveAppointments();
+  }, [user]);
+
+  const getSlotConflictInfo = (ts: { start_time: string; end_time: string }, activeAppts: any[], displacementMins: number) => {
+    const tsStart = new Date(ts.start_time).getTime();
+    const tsEnd = new Date(ts.end_time).getTime();
+
+    for (const appt of activeAppts) {
+      if (!appt.timeslots) continue;
+      const appStart = new Date(appt.timeslots.start_time).getTime();
+      const appEnd = new Date(appt.timeslots.end_time).getTime();
+      const deptName = appt.timeslots.departments?.name || "outro setor";
+
+      // Conflito Direto de Horário (sobreposição)
+      if (tsStart < appEnd && tsEnd > appStart) {
+        return {
+          hasConflict: true,
+          isOverlap: true,
+          message: `Conflito direto com agendamento das ${format(appStart, "HH:mm")} às ${format(appEnd, "HH:mm")} em ${deptName}.`
+        };
+      }
+
+      // Intervalo de Deslocamento Insuficiente
+      if (displacementMins > 0) {
+        if (appStart >= tsEnd) {
+          const gapMinutes = (appStart - tsEnd) / 60000;
+          if (gapMinutes < displacementMins) {
+            return {
+              hasConflict: true,
+              isDisplacement: true,
+              message: `Tempo de deslocamento curto: Apenas ${Math.round(gapMinutes)} min de intervalo antes do atendimento das ${format(appStart, "HH:mm")} em ${deptName} (mínimo necessário: ${displacementMins} min).`
+            };
+          }
+        } else if (tsStart >= appEnd) {
+          const gapMinutes = (tsStart - appEnd) / 60000;
+          if (gapMinutes < displacementMins) {
+            return {
+              hasConflict: true,
+              isDisplacement: true,
+              message: `Tempo de deslocamento curto: Apenas ${Math.round(gapMinutes)} min de intervalo após o atendimento das ${format(appEnd, "HH:mm")} em ${deptName} (mínimo necessário: ${displacementMins} min).`
+            };
+          }
+        }
+      }
+    }
+
+    return { hasConflict: false };
   };
 
   useEffect(() => {
@@ -85,26 +147,52 @@ export default function BookAppointmentPage() {
     }
     setBooking(true);
 
-    // Verificação de choque de horários
-    const selectedTimeslot = timeslots.find((ts) => ts.id === selectedSlot);
-    if (selectedTimeslot) {
-      const { data: conflict } = await supabase
-        .from("appointments")
-        .select("id, timeslots!inner(start_time)")
-        .eq("requester_id", user.id)
-        .eq("status", "active")
-        .eq("timeslots.start_time", selectedTimeslot.start_time)
-        .maybeSingle();
+    // 1. Re-verificação da disponibilidade da vaga no banco
+    const { data: slotData } = await supabase
+      .from("timeslots")
+      .select("id, start_time, end_time, is_available")
+      .eq("id", selectedSlot)
+      .maybeSingle();
 
-      if (conflict) {
-        toast({
-          title: "Choque de Horários",
-          description: "Você já possui um atendimento marcado para este mesmo horário em outro setor.",
-          variant: "destructive",
-        });
-        setBooking(false);
-        return;
+    if (!slotData || !slotData.is_available) {
+      toast({
+        title: "Vaga Indisponível",
+        description: "Esta vaga acabou de ser preenchida por outro usuário. Por favor, escolha outro horário.",
+        variant: "destructive",
+      });
+      setBooking(false);
+      if (selectedDept) {
+        const { data } = await supabase
+          .from("timeslots")
+          .select("*")
+          .eq("department_id", selectedDept)
+          .eq("is_available", true)
+          .gte("start_time", new Date().toISOString())
+          .order("start_time");
+        setTimeslots(data || []);
       }
+      return;
+    }
+
+    // 2. Buscar agendamentos ativos atualizados do usuário para validação de conflitos e deslocamento
+    const { data: activeAppts } = await supabase
+      .from("appointments")
+      .select("id, timeslots!inner(id, start_time, end_time, department_id, departments(name))")
+      .eq("requester_id", user.id)
+      .eq("status", "active");
+
+    const activeList = activeAppts || [];
+    const dispMins = parseInt(displacementBuffer, 10) || 0;
+    const conflictInfo = getSlotConflictInfo(slotData, activeList, dispMins);
+
+    if (conflictInfo.hasConflict) {
+      toast({
+        title: conflictInfo.isOverlap ? "Choque de Horários" : "Intervalo de Deslocamento Insuficiente",
+        description: conflictInfo.message,
+        variant: "destructive",
+      });
+      setBooking(false);
+      return;
     }
 
     const { error } = await supabase.from("appointments").insert({
@@ -120,6 +208,7 @@ export default function BookAppointmentPage() {
       toast({ title: "Agendamento realizado com sucesso!" });
       setDescription("");
       setSelectedSlot("");
+      fetchUserActiveAppointments();
       if (selectedDept) {
         const { data } = await supabase
           .from("timeslots")
@@ -244,8 +333,29 @@ export default function BookAppointmentPage() {
                 )}
               </div>
 
-              <div className="space-y-2 pt-4 border-t">
-                <Label>Horários Disponíveis</Label>
+              <div className="space-y-3 pt-4 border-t">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <Label className="text-base font-semibold">Horários Disponíveis</Label>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="disp-buffer" className="text-xs text-muted-foreground whitespace-nowrap">
+                      Intervalo p/ Deslocamento:
+                    </Label>
+                    <Select value={displacementBuffer} onValueChange={setDisplacementBuffer}>
+                      <SelectTrigger id="disp-buffer" className="h-8 text-xs w-36 bg-white">
+                        <SelectValue placeholder="Intervalo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">0 min (Sem pausa)</SelectItem>
+                        <SelectItem value="5">5 min</SelectItem>
+                        <SelectItem value="10">10 min</SelectItem>
+                        <SelectItem value="15">15 min (Recomendado)</SelectItem>
+                        <SelectItem value="20">20 min</SelectItem>
+                        <SelectItem value="30">30 min</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 {loadingSlots ? (
                   <p className="text-sm text-muted-foreground">Carregando...</p>
                 ) : timeslots.length === 0 ? (
@@ -256,21 +366,26 @@ export default function BookAppointmentPage() {
                       const requires24hAdvance = ts.requires_24h_advance;
                       const hoursDiff = differenceInHours(new Date(ts.start_time), new Date());
                       const isBlockedBy24hRule = requires24hAdvance && hoursDiff < 24;
+                      const dispMins = parseInt(displacementBuffer, 10) || 0;
+                      const conflictInfo = getSlotConflictInfo(ts, userActiveAppointments, dispMins);
+
+                      const isDisabled = isBlockedBy24hRule || conflictInfo.hasConflict;
 
                       return (
                         <button
                           key={ts.id}
-                          onClick={() => !isBlockedBy24hRule && setSelectedSlot(ts.id)}
-                          disabled={isBlockedBy24hRule}
-                          className={`relative flex items-center justify-between rounded-lg border p-3 text-left transition-colors ${isBlockedBy24hRule
-                            ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200"
-                            : selectedSlot === ts.id
-                              ? "border-primary bg-primary/5 ring-1 ring-primary"
-                              : "hover:border-primary/50"
-                            }`}
+                          onClick={() => !isDisabled && setSelectedSlot(ts.id)}
+                          disabled={isDisabled}
+                          className={`relative flex items-center justify-between rounded-lg border p-3 text-left transition-colors ${
+                            isDisabled
+                              ? "opacity-60 cursor-not-allowed bg-slate-50 border-slate-200"
+                              : selectedSlot === ts.id
+                                ? "border-primary bg-primary/5 ring-1 ring-primary"
+                                : "hover:border-primary/50"
+                          }`}
                         >
                           <div className="flex items-center gap-3">
-                            <Clock className={`h-4 w-4 shrink-0 ${isBlockedBy24hRule ? 'text-slate-400' : 'text-muted-foreground'}`} />
+                            <Clock className={`h-4 w-4 shrink-0 ${isDisabled ? 'text-slate-400' : 'text-muted-foreground'}`} />
                             <div>
                               <p className="text-sm font-medium">{format(new Date(ts.start_time), "dd/MM/yyyy", { locale: ptBR })}</p>
                               <p className="text-xs text-muted-foreground">
@@ -279,20 +394,37 @@ export default function BookAppointmentPage() {
                             </div>
                           </div>
 
-                          {isBlockedBy24hRule && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="bg-amber-100 p-1.5 rounded-full text-amber-600 cursor-help">
-                                    <Info className="w-4 h-4" />
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  <p>Requer agendamento com 24h de antecedência.</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {conflictInfo.hasConflict && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className={`p-1.5 rounded-full cursor-help ${conflictInfo.isOverlap ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
+                                      <Info className="w-4 h-4" />
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs max-w-xs">{conflictInfo.message}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+
+                            {isBlockedBy24hRule && !conflictInfo.hasConflict && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="bg-slate-100 p-1.5 rounded-full text-slate-600 cursor-help">
+                                      <Info className="w-4 h-4" />
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">Requer agendamento com 24h de antecedência.</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
                         </button>
                       );
                     })}
