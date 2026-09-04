@@ -1,4 +1,4 @@
--- Migration: Add ON DELETE CASCADE, RLS Delete Policies, and SECURITY DEFINER Cascade Delete Functions
+-- Migration: Add ON DELETE CASCADE, RLS Delete Policies, SECURITY DEFINER Cascade Delete Functions, and GRANTS
 
 -- 0. Ensure helper function is_coordinator_of exists safely
 CREATE OR REPLACE FUNCTION public.is_coordinator_of(user_id uuid, dept_id uuid)
@@ -61,3 +61,9 @@ BEGIN
   DELETE FROM public.timeslots WHERE id = ANY(p_timeslot_ids);
 END;
 $$;
+
+-- 5. Grant execution permissions to authenticated users and reload PostgREST schema cache
+GRANT EXECUTE ON FUNCTION public.delete_timeslot_cascade(UUID) TO authenticated, anon, service_role;
+GRANT EXECUTE ON FUNCTION public.delete_timeslots_bulk_cascade(UUID[]) TO authenticated, anon, service_role;
+
+NOTIFY pgrst, 'reload schema';
