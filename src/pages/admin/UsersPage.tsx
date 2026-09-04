@@ -16,7 +16,7 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { toast } from "@/hooks/use-toast";
 import ReactQuill from "react-quill";
 import "react-quill/dist/quill.snow.css";
-import { Plus, Send, Save, MoreHorizontal, Pencil, KeyRound, Mail, RefreshCw, Ban, CheckCircle, Trash2, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Send, Save, MoreHorizontal, Pencil, KeyRound, Mail, RefreshCw, Ban, CheckCircle, Trash2, Search, ArrowUpDown, ArrowUp, ArrowDown, Users, UserCheck, UserX, UserMinus, Activity, Filter, Clock, CheckCircle2, ShieldAlert } from "lucide-react";
 import SchoolUnitCombobox from "@/components/SchoolUnitCombobox";
 import DepartmentCombobox from "@/components/DepartmentCombobox";
 import MultiDepartmentCombobox from "@/components/MultiDepartmentCombobox";
@@ -24,6 +24,13 @@ import type { Tables } from "@/integrations/supabase/types";
 import { translateError } from "@/lib/errorTranslations";
 
 type Profile = Tables<"profiles">;
+
+interface AuthUserInfo {
+  last_sign_in_at: string | null;
+  email_confirmed_at?: string | null;
+  banned_until?: string | null;
+  created_at?: string | null;
+}
 
 const roleLabels: Record<string, string> = {
   admin: "Administrador",
@@ -98,10 +105,13 @@ export default function UsersPage() {
   // Action loading (for suspend/reactivate/links)
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
-  // New states for enhancements
+  // New states for dashboard & enhancements
   const [searchTerm, setSearchTerm] = useState("");
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: "asc" | "desc" } | null>(null);
   const [authUsers, setAuthUsers] = useState<Record<string, string | null>>({});
+  const [authMetadata, setAuthMetadata] = useState<Record<string, AuthUserInfo>>({});
+  const [statusFilter, setStatusFilter] = useState<"all" | "activated" | "never" | "suspended">("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "coordinator" | "department" | "school">("all");
 
   const fetchProfiles = async () => {
     setLoading(true);
@@ -130,15 +140,23 @@ export default function UsersPage() {
       }));
       setProfiles(mapped);
       
-      // Fetch auth users for last_sign_in_at
+      // Fetch auth users for last_sign_in_at & metadata
       try {
         const authData = await supabase.functions.invoke("admin-user-actions", { body: { action: "listAuthUsers" } });
         if (authData.data && authData.data.users) {
           const dict: Record<string, string | null> = {};
+          const metaDict: Record<string, AuthUserInfo> = {};
           authData.data.users.forEach((u: any) => {
-            dict[u.id] = u.last_sign_in_at;
+            dict[u.id] = u.last_sign_in_at || null;
+            metaDict[u.id] = {
+              last_sign_in_at: u.last_sign_in_at || null,
+              email_confirmed_at: u.email_confirmed_at || null,
+              banned_until: u.banned_until || null,
+              created_at: u.created_at || null,
+            };
           });
           setAuthUsers(dict);
+          setAuthMetadata(metaDict);
         }
       } catch (e) {
         console.error("Erro ao buscar ultimo acesso:", e);
@@ -572,14 +590,66 @@ export default function UsersPage() {
     </>
   );
 
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, sortConfig, statusFilter, roleFilter]);
+
+  const getUserStatus = (p: Profile): "suspended" | "activated" | "never" => {
+    const meta = authMetadata[p.id];
+    if (meta?.banned_until && new Date(meta.banned_until).getTime() > Date.now()) {
+      return "suspended";
+    }
+    if (meta?.last_sign_in_at || authUsers[p.id]) {
+      return "activated";
+    }
+    return "never";
+  };
+
+  // --- Dashboard Metrics ---
+  const totalCount = profiles.length;
+  const activatedCount = profiles.filter(p => getUserStatus(p) === "activated").length;
+  const neverCount = profiles.filter(p => getUserStatus(p) === "never").length;
+  const suspendedCount = profiles.filter(p => getUserStatus(p) === "suspended").length;
+
+  const now = new Date();
+  const currentMonth = now.getMonth();
+  const currentYear = now.getFullYear();
+
+  const recentThisMonthCount = profiles.filter(p => {
+    if (!p.created_at) return false;
+    const dt = new Date(p.created_at);
+    return dt.getMonth() === currentMonth && dt.getFullYear() === currentYear;
+  }).length;
+
+  const activationPct = totalCount > 0 ? Math.round((activatedCount / totalCount) * 100) : 0;
+  const neverPct = totalCount > 0 ? Math.round((neverCount / totalCount) * 100) : 0;
+  const suspendedPct = totalCount > 0 ? Math.round((suspendedCount / totalCount) * 100) : 0;
+
+  const roleCounts = {
+    admin: profiles.filter(p => p.role === "admin").length,
+    coordinator: profiles.filter(p => p.role === "coordinator").length,
+    department: profiles.filter(p => p.role === "department").length,
+    school: profiles.filter(p => p.role === "school").length,
+  };
+
   // --- Filtering & Sorting Local Data ---
   const filteredProfiles = profiles.filter(p => {
+    // Status filter
+    const userStatus = getUserStatus(p);
+    if (statusFilter === "activated" && userStatus !== "activated") return false;
+    if (statusFilter === "never" && userStatus !== "never") return false;
+    if (statusFilter === "suspended" && userStatus !== "suspended") return false;
+
+    // Role filter
+    if (roleFilter !== "all" && p.role !== roleFilter) return false;
+
+    // Search term filter
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     const roleString = (roleLabels[p.role] || p.role).toLowerCase();
     const unitString = (p.unidade?.nome_escola || "").toLowerCase();
     const depString = (p.departamento?.name || "").toLowerCase();
     const coordString = ((p as any).coordinatorDepts?.map((d: any) => d.name).join(" ") || "").toLowerCase();
+    const statusLabel = userStatus === "activated" ? "ativo ja acessou ativado" : userStatus === "suspended" ? "suspenso bloqueado" : "nunca acessou pendente";
+
     return (
       (p.name || "").toLowerCase().includes(term) ||
       p.email.toLowerCase().includes(term) ||
@@ -587,7 +657,8 @@ export default function UsersPage() {
       roleString.includes(term) ||
       unitString.includes(term) ||
       depString.includes(term) ||
-      coordString.includes(term)
+      coordString.includes(term) ||
+      statusLabel.includes(term)
     );
   });
 
@@ -605,8 +676,14 @@ export default function UsersPage() {
       aVal = roleLabels[a.role] || a.role;
       bVal = roleLabels[b.role] || b.role;
     } else if (key === "last_sign_in_at") {
-      aVal = authUsers[a.id] || "";
-      bVal = authUsers[b.id] || "";
+      aVal = authMetadata[a.id]?.last_sign_in_at || authUsers[a.id] || "";
+      bVal = authMetadata[b.id]?.last_sign_in_at || authUsers[b.id] || "";
+    } else if (key === "user_status") {
+      aVal = getUserStatus(a);
+      bVal = getUserStatus(b);
+    } else if (key === "created_at") {
+      aVal = a.created_at || "";
+      bVal = b.created_at || "";
     }
 
     if (!aVal && bVal) return direction === "asc" ? -1 : 1;
@@ -872,24 +949,216 @@ export default function UsersPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Users Table */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="relative w-full sm:w-96">
+      {/* Dashboard KPI Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md border-l-4 border-l-blue-500 ${statusFilter === 'all' ? 'ring-2 ring-primary bg-blue-50/40 dark:bg-blue-950/20' : ''}`}
+          onClick={() => setStatusFilter('all')}
+        >
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Criados (Total)</span>
+              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400">
+                <Users className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between">
+              <div className="text-3xl font-bold text-foreground">{totalCount}</div>
+              <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                +{recentThisMonthCount} este mês
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">Usuários cadastrados no sistema</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md border-l-4 border-l-emerald-500 ${statusFilter === 'activated' ? 'ring-2 ring-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'activated' ? 'all' : 'activated')}
+        >
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Já Ativaram</span>
+              <div className="p-2 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
+                <UserCheck className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between">
+              <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400">{activatedCount}</div>
+              <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-200">
+                {activationPct}% da base
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">Acessaram a plataforma ao menos 1x</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md border-l-4 border-l-amber-500 ${statusFilter === 'never' ? 'ring-2 ring-amber-500 bg-amber-50/40 dark:bg-amber-950/20' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'never' ? 'all' : 'never')}
+        >
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nunca Acessaram</span>
+              <div className="p-2 rounded-lg bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400">
+                <UserX className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between">
+              <div className="text-3xl font-bold text-amber-600 dark:text-amber-400">{neverCount}</div>
+              <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                {neverPct}% pendentes
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">Aguardando o primeiro login/senha</p>
+          </CardContent>
+        </Card>
+
+        <Card 
+          className={`cursor-pointer transition-all hover:shadow-md border-l-4 border-l-rose-500 ${statusFilter === 'suspended' ? 'ring-2 ring-rose-500 bg-rose-50/40 dark:bg-rose-950/20' : ''}`}
+          onClick={() => setStatusFilter(statusFilter === 'suspended' ? 'all' : 'suspended')}
+        >
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Suspensos</span>
+              <div className="p-2 rounded-lg bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-400">
+                <UserMinus className="h-5 w-5" />
+              </div>
+            </div>
+            <div className="mt-3 flex items-baseline justify-between">
+              <div className="text-3xl font-bold text-rose-600 dark:text-rose-400">{suspendedCount}</div>
+              <Badge variant="outline" className="text-xs bg-rose-50 text-rose-700 border-rose-200">
+                {suspendedPct}% bloqueados
+              </Badge>
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">Contas suspensas/desativadas</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Progress & Distribution Bar */}
+      <Card className="p-4 space-y-3 bg-white">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
+          <span className="font-semibold text-foreground flex items-center gap-2">
+            <Activity className="h-4 w-4 text-primary" /> Taxa de Ativação e Distribuição de Acessos
+          </span>
+          <span className="text-xs text-muted-foreground font-mono">
+            {activatedCount} de {totalCount} usuários ativados ({activationPct}%)
+          </span>
+        </div>
+        <div className="w-full bg-slate-100 dark:bg-slate-800 h-3.5 rounded-full overflow-hidden flex">
+          <div 
+            style={{ width: `${activationPct}%` }} 
+            className="bg-emerald-500 h-full transition-all duration-500" 
+            title={`Ativados: ${activatedCount} (${activationPct}%)`}
+          />
+          <div 
+            style={{ width: `${neverPct}%` }} 
+            className="bg-amber-400 h-full transition-all duration-500" 
+            title={`Nunca acessaram: ${neverCount} (${neverPct}%)`}
+          />
+          <div 
+            style={{ width: `${suspendedPct}%` }} 
+            className="bg-rose-500 h-full transition-all duration-500" 
+            title={`Suspensos: ${suspendedCount} (${suspendedPct}%)`}
+          />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground pt-1">
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 inline-block" />
+              <span>Ativados: <strong>{activatedCount}</strong></span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-400 inline-block" />
+              <span>Nunca Acessaram: <strong>{neverCount}</strong></span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-rose-500 inline-block" />
+              <span>Suspensos: <strong>{suspendedCount}</strong></span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-[11px]">
+            <span>Admins: <strong>{roleCounts.admin}</strong></span> |
+            <span>Coordenadores: <strong>{roleCounts.coordinator}</strong></span> |
+            <span>Setores: <strong>{roleCounts.department}</strong></span> |
+            <span>Escolas: <strong>{roleCounts.school}</strong></span>
+          </div>
+        </div>
+      </Card>
+
+      {/* Users Table Search & Filter Bar */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4">
+        <div className="relative w-full lg:w-96">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input 
-            placeholder="Busque por nome, e-mail, perfil, unidade, setor ou cargo..." 
+            placeholder="Busque por nome, e-mail, perfil, unidade ou status..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 bg-white"
           />
         </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+            <Filter className="h-3.5 w-3.5" /> Status:
+          </span>
+          <Button 
+            variant={statusFilter === "all" ? "default" : "outline"} 
+            size="sm" 
+            onClick={() => setStatusFilter("all")} 
+            className="h-8 text-xs"
+          >
+            Todos ({totalCount})
+          </Button>
+          <Button 
+            variant={statusFilter === "activated" ? "default" : "outline"} 
+            size="sm" 
+            onClick={() => setStatusFilter("activated")} 
+            className={`h-8 text-xs ${statusFilter === 'activated' ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : 'border-emerald-200 text-emerald-700 hover:bg-emerald-50'}`}
+          >
+            Já Ativaram ({activatedCount})
+          </Button>
+          <Button 
+            variant={statusFilter === "never" ? "default" : "outline"} 
+            size="sm" 
+            onClick={() => setStatusFilter("never")} 
+            className={`h-8 text-xs ${statusFilter === 'never' ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'border-amber-200 text-amber-700 hover:bg-amber-50'}`}
+          >
+            Nunca Acessaram ({neverCount})
+          </Button>
+          <Button 
+            variant={statusFilter === "suspended" ? "default" : "outline"} 
+            size="sm" 
+            onClick={() => setStatusFilter("suspended")} 
+            className={`h-8 text-xs ${statusFilter === 'suspended' ? 'bg-rose-600 hover:bg-rose-700 text-white' : 'border-rose-200 text-rose-700 hover:bg-rose-50'}`}
+          >
+            Suspensos ({suspendedCount})
+          </Button>
+
+          <div className="h-4 w-[1px] bg-border mx-1 hidden sm:block" />
+
+          <Select value={roleFilter} onValueChange={(val) => setRoleFilter(val as any)}>
+            <SelectTrigger className="h-8 text-xs w-[160px] bg-white">
+              <SelectValue placeholder="Filtrar Perfil" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os Perfis</SelectItem>
+              <SelectItem value="admin">Administrador ({roleCounts.admin})</SelectItem>
+              <SelectItem value="coordinator">Coordenador ({roleCounts.coordinator})</SelectItem>
+              <SelectItem value="department">Setor Único ({roleCounts.department})</SelectItem>
+              <SelectItem value="school">Escola ({roleCounts.school})</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-8 text-center text-muted-foreground">Carregando...</div>
+            <div className="p-8 text-center text-muted-foreground">Carregando usuários...</div>
           ) : sortedProfiles.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground">Nenhum usuário encontrado.</div>
+            <div className="p-8 text-center text-muted-foreground">Nenhum usuário encontrado para os filtros selecionados.</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -904,11 +1173,17 @@ export default function UsersPage() {
                     <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('role_label')}>
                       <div className="flex items-center">Perfil <SortIcon columnKey="role_label" /></div>
                     </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('user_status')}>
+                      <div className="flex items-center">Status <SortIcon columnKey="user_status" /></div>
+                    </TableHead>
                     <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('unidade_setor')}>
                       <div className="flex items-center">Unidade / Setor <SortIcon columnKey="unidade_setor" /></div>
                     </TableHead>
                     <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('cargo')}>
                       <div className="flex items-center">Cargo <SortIcon columnKey="cargo" /></div>
+                    </TableHead>
+                    <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('created_at')}>
+                      <div className="flex items-center">Criado em <SortIcon columnKey="created_at" /></div>
                     </TableHead>
                     <TableHead className="cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => handleSort('last_sign_in_at')}>
                       <div className="flex items-center">Último Acesso <SortIcon columnKey="last_sign_in_at" /></div>
@@ -917,64 +1192,85 @@ export default function UsersPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {paginatedProfiles.map((p) => (
-                    <TableRow key={p.id}>
-                      <TableCell className="font-medium">{p.name || "—"}</TableCell>
-                      <TableCell>{p.email}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={roleBadgeClasses[p.role]}>
-                          {roleLabels[p.role] || p.role}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        {p.role === "school" ? (p.unidade?.nome_escola || "—") :
-                          p.role === "department" ? (p.departamento?.name || "—") : 
-                          p.role === "coordinator" ? ((p as any).coordinatorDepts?.map((d:any)=>d.name).join(", ") || "Nenhum Setor") : "—"}
-                      </TableCell>
-                      <TableCell>{p.cargo || "—"}</TableCell>
-                      <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {formatLastSignIn(authUsers[p.id])}
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" disabled={actionLoading === p.id}>
-                              <MoreHorizontal className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => openEdit(p)}>
-                              <Pencil className="mr-2 h-4 w-4" /> Editar Perfil
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => openPasswordModal(p)}>
-                              <KeyRound className="mr-2 h-4 w-4" /> Alterar Senha
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleGenerateLink(p, "magiclink")}>
-                              <Mail className="mr-2 h-4 w-4" /> Copiar Link Mágico
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleGenerateLink(p, "recovery")}>
-                              <RefreshCw className="mr-2 h-4 w-4" /> Copiar Link Redefinição
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleSendRecoveryEmail(p)}>
-                              <Send className="mr-2 h-4 w-4" /> Enviar Redefinição por E-mail
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => handleSuspend(p)}>
-                              <Ban className="mr-2 h-4 w-4" /> Suspender Acesso
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleReactivate(p)}>
-                              <CheckCircle className="mr-2 h-4 w-4" /> Reativar Acesso
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => openDeleteConfirm(p)} className="text-destructive focus:text-destructive">
-                              <Trash2 className="mr-2 h-4 w-4" /> Excluir Usuário
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {paginatedProfiles.map((p) => {
+                    const status = getUserStatus(p);
+                    return (
+                      <TableRow key={p.id}>
+                        <TableCell className="font-medium">{p.name || "—"}</TableCell>
+                        <TableCell>{p.email}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={roleBadgeClasses[p.role]}>
+                            {roleLabels[p.role] || p.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {status === "suspended" ? (
+                            <Badge variant="outline" className="bg-rose-100 text-rose-800 border-rose-300 flex items-center gap-1 w-max">
+                              <Ban className="h-3 w-3" /> Suspenso
+                            </Badge>
+                          ) : status === "activated" ? (
+                            <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-300 flex items-center gap-1 w-max">
+                              <CheckCircle className="h-3 w-3" /> Ativo
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 flex items-center gap-1 w-max">
+                              <Clock className="h-3 w-3" /> Nunca Acessou
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {p.role === "school" ? (p.unidade?.nome_escola || "—") :
+                            p.role === "department" ? (p.departamento?.name || "—") : 
+                            p.role === "coordinator" ? ((p as any).coordinatorDepts?.map((d:any)=>d.name).join(", ") || "Nenhum Setor") : "—"}
+                        </TableCell>
+                        <TableCell>{p.cargo || "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
+                          {p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : "—"}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
+                          {formatLastSignIn(authMetadata[p.id]?.last_sign_in_at || authUsers[p.id])}
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" disabled={actionLoading === p.id}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEdit(p)}>
+                                <Pencil className="mr-2 h-4 w-4" /> Editar Perfil
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openPasswordModal(p)}>
+                                <KeyRound className="mr-2 h-4 w-4" /> Alterar Senha
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleGenerateLink(p, "magiclink")}>
+                                <Mail className="mr-2 h-4 w-4" /> Copiar Link Mágico
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleGenerateLink(p, "recovery")}>
+                                <RefreshCw className="mr-2 h-4 w-4" /> Copiar Link Redefinição
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleSendRecoveryEmail(p)}>
+                                <Send className="mr-2 h-4 w-4" /> Enviar Redefinição por E-mail
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => handleSuspend(p)}>
+                                <Ban className="mr-2 h-4 w-4" /> Suspender Acesso
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleReactivate(p)}>
+                                <CheckCircle className="mr-2 h-4 w-4" /> Reativar Acesso
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => openDeleteConfirm(p)} className="text-destructive focus:text-destructive">
+                                <Trash2 className="mr-2 h-4 w-4" /> Excluir Usuário
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
               {totalPages > 1 && (

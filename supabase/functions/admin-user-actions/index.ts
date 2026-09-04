@@ -215,7 +215,13 @@ Deno.serve(async (req) => {
         if (error) throw error;
         result = {
           success: true,
-          users: users.map(u => ({ id: u.id, last_sign_in_at: u.last_sign_in_at }))
+          users: users.map(u => ({
+            id: u.id,
+            last_sign_in_at: u.last_sign_in_at,
+            email_confirmed_at: u.email_confirmed_at || (u as any).confirmed_at,
+            banned_until: u.banned_until,
+            created_at: u.created_at
+          }))
         };
         break;
       }
