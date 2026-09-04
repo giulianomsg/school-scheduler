@@ -9,6 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CalendarDays, Clock, Trash2, CalendarPlus, AlertCircle, CopyPlus, ShieldAlert, CalendarRange } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { format, isPast, parseISO, addHours, eachDayOfInterval, getDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "@/hooks/use-toast";
@@ -43,6 +45,13 @@ export default function TimeslotsPage() {
   const [bufferMinutes, setBufferMinutes] = useState("0");
   const [requires24hAdvance, setRequires24hAdvance] = useState(true);
 
+  // Modal de Reagendamento / Alteração de Horário pelo Setor
+  const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+  const [editingAppointment, setEditingAppointment] = useState<any>(null);
+  const [selectedNewSlotId, setSelectedNewSlotId] = useState<string>("");
+  const [rescheduleReason, setRescheduleReason] = useState<string>("");
+  const [savingReschedule, setSavingReschedule] = useState(false);
+
   const toggleDay = (dayId: number) => {
     if (selectedDays.includes(dayId)) {
       setSelectedDays(selectedDays.filter((d) => d !== dayId));
@@ -59,7 +68,7 @@ export default function TimeslotsPage() {
 
     const { data: slots, error } = await supabase
       .from("timeslots")
-      .select("*, appointments(id)")
+      .select("*, appointments(*, profiles!appointments_requester_id_fkey(*, unidades_escolares(*)))")
       .eq("department_id", currentDeptId)
       .order("start_time", { ascending: true });
 
@@ -185,8 +194,33 @@ export default function TimeslotsPage() {
       }
     }
 
-    if (slotsToInsert.length === 0) {
-      if (skippedPastCount > 0 || skippedAdvanceCount > 0) {
+    // Validação de sobreposição com vagas já existentes no setor
+    let skippedOverlapCount = 0;
+    const validSlotsToInsert = slotsToInsert.filter((newSlot) => {
+      const nStart = new Date(newSlot.start_time).getTime();
+      const nEnd = new Date(newSlot.end_time).getTime();
+
+      const overlaps = timeslots.some((existing) => {
+        const eStart = new Date(existing.start_time).getTime();
+        const eEnd = new Date(existing.end_time).getTime();
+        return nStart < eEnd && nEnd > eStart;
+      });
+
+      if (overlaps) {
+        skippedOverlapCount++;
+        return false;
+      }
+      return true;
+    });
+
+    if (validSlotsToInsert.length === 0) {
+      if (skippedOverlapCount > 0) {
+        toast({
+          title: "Atenção - Choque de Horários",
+          description: `Todas as ${skippedOverlapCount} vagas geradas entrariam em choque de horário com vagas já existentes neste setor.`,
+          variant: "destructive"
+        });
+      } else if (skippedPastCount > 0 || skippedAdvanceCount > 0) {
         toast({
           title: "Atenção",
           description: "Nenhuma vaga válida foi gerada. As vagas no passado ou com menos de 24h de antecedência foram ignoradas.",
@@ -199,16 +233,18 @@ export default function TimeslotsPage() {
     }
 
     try {
-      const { error } = await supabase.from("timeslots").insert(slotsToInsert);
+      const { error } = await supabase.from("timeslots").insert(validSlotsToInsert);
       if (error) throw error;
 
       const daysCount = datesToProcess.length;
       const bufferInfo = bufferMins > 0 ? ` com ${bufferMins} min de intervalo para deslocamento` : "";
+      const overlapWarning = skippedOverlapCount > 0 ? ` (${skippedOverlapCount} vagas ignoradas por sobreposição)` : "";
+
       toast({
         title: "Agenda Gerada com Sucesso!",
         description: creationMode === "single"
-          ? `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos${bufferInfo}.`
-          : `Foram disponibilizadas ${slotsToInsert.length} vagas de ${durationMins} minutos${bufferInfo} distribuídas em ${daysCount} dia(s).`,
+          ? `Foram disponibilizadas ${validSlotsToInsert.length} vagas de ${durationMins} minutos${bufferInfo}${overlapWarning}.`
+          : `Foram disponibilizadas ${validSlotsToInsert.length} vagas de ${durationMins} minutos${bufferInfo} distribuídas em ${daysCount} dia(s)${overlapWarning}.`,
       });
 
       setStartTime("");
@@ -216,6 +252,101 @@ export default function TimeslotsPage() {
       fetchTimeslots(departmentId);
     } catch (error: any) {
       toast({ title: "Erro", description: translateError(error), variant: "destructive" });
+    }
+  };
+
+  // Verificação de sobreposição entre vagas do próprio setor
+  const getSlotOverlapConflict = (slot: any) => {
+    const sStart = new Date(slot.start_time).getTime();
+    const sEnd = new Date(slot.end_time).getTime();
+
+    for (const other of timeslots) {
+      if (other.id === slot.id) continue;
+      const oStart = new Date(other.start_time).getTime();
+      const oEnd = new Date(other.end_time).getTime();
+
+      if (sStart < oEnd && sEnd > oStart) {
+        const otherLabel = `${format(new Date(oStart), "HH:mm")} - ${format(new Date(oEnd), "HH:mm")}`;
+        const hasOtherAppt = other.appointments && other.appointments.length > 0;
+        return {
+          hasConflict: true,
+          conflictingSlot: other,
+          message: `Sobreposição de horário com a vaga das ${otherLabel}${hasOtherAppt ? " (Reservada)" : " (Livre)"}.`
+        };
+      }
+    }
+    return { hasConflict: false };
+  };
+
+  const openRescheduleModal = (slot: any) => {
+    const appts = Array.isArray(slot.appointments) ? slot.appointments : [slot.appointments];
+    const activeAppt = appts.find((a: any) => a && a.status === "active") || appts[0];
+    if (!activeAppt) {
+      toast({ title: "Atenção", description: "Esta vaga não possui um agendamento ativo.", variant: "destructive" });
+      return;
+    }
+
+    setEditingAppointment({
+      ...activeAppt,
+      timeslots: slot,
+    });
+    setSelectedNewSlotId("");
+    setRescheduleReason("");
+    setIsRescheduleModalOpen(true);
+  };
+
+  const handleConfirmReschedule = async () => {
+    if (!editingAppointment || !selectedNewSlotId) {
+      toast({ title: "Atenção", description: "Selecione uma nova vaga livre para reagendar.", variant: "destructive" });
+      return;
+    }
+
+    setSavingReschedule(true);
+    try {
+      // 1. Liberar vaga antiga
+      await supabase
+        .from("timeslots")
+        .update({ is_available: true })
+        .eq("id", editingAppointment.timeslots.id);
+
+      // 2. Ocupar vaga nova
+      await supabase
+        .from("timeslots")
+        .update({ is_available: false })
+        .eq("id", selectedNewSlotId);
+
+      // 3. Atualizar appointment
+      const { error } = await supabase
+        .from("appointments")
+        .update({ timeslot_id: selectedNewSlotId })
+        .eq("id", editingAppointment.id);
+
+      if (error) throw error;
+
+      // 4. Enviar notificação para a escola
+      const newSlot = timeslots.find((s) => s.id === selectedNewSlotId);
+      const newTimeStr = newSlot
+        ? format(new Date(newSlot.start_time), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })
+        : "";
+
+      const reasonMsg = rescheduleReason.trim()
+        ? ` Motivo: ${rescheduleReason}`
+        : " (Horário ajustado pelo setor para resolver sobreposição de vagas).";
+
+      await supabase.from("notifications").insert({
+        user_id: editingAppointment.requester_id,
+        title: `Reagendamento de Atendimento`,
+        message: `Seu agendamento foi alterado pelo setor para o novo horário: ${newTimeStr}.${reasonMsg}`,
+      });
+
+      toast({ title: "Agendamento Reagendado!", description: "O horário foi alterado e a vaga anterior foi liberada." });
+      setIsRescheduleModalOpen(false);
+      setEditingAppointment(null);
+      if (departmentId) fetchTimeslots(departmentId);
+    } catch (err: any) {
+      toast({ title: "Erro ao reagendar", description: translateError(err), variant: "destructive" });
+    } finally {
+      setSavingReschedule(false);
     }
   };
 
@@ -275,45 +406,96 @@ export default function TimeslotsPage() {
   const pastGrouped = groupByDate(pastSlots);
 
   const SlotCard = ({ slot }: { slot: any }) => {
-    // 💡 CORREÇÃO 3: Define se a vaga já teve alguém associado a ela
     const hasHistory = slot.appointments && slot.appointments.length > 0;
+    const activeAppts = Array.isArray(slot.appointments) ? slot.appointments.filter((a: any) => a && a.status === "active") : (slot.appointments ? [slot.appointments] : []);
+    const activeAppt = activeAppts[0];
+    const schoolName = activeAppt?.profiles?.unidades_escolares?.nome_escola || activeAppt?.profiles?.name || activeAppt?.profiles?.email;
+
+    const slotConflict = getSlotOverlapConflict(slot);
 
     return (
-      <div className={`flex items-center justify-between p-3 border rounded-md mb-2 ${slot.is_available ? 'bg-white' : 'bg-slate-50 border-slate-200 opacity-80'}`}>
-        <div className="flex items-center gap-3">
-          <div className="bg-indigo-50 p-2 rounded-md">
-            <Clock className="w-5 h-5 text-indigo-600" />
+      <div className={`p-3 border rounded-md mb-2 flex flex-col justify-between gap-2 transition-all ${
+        slotConflict.hasConflict
+          ? 'bg-red-50/60 border-red-300 ring-1 ring-red-400'
+          : slot.is_available
+            ? 'bg-white'
+            : 'bg-slate-50 border-slate-200'
+      }`}>
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className={`p-2 rounded-md ${slotConflict.hasConflict ? 'bg-red-100 text-red-700' : 'bg-indigo-50 text-indigo-600'}`}>
+              <Clock className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-semibold text-slate-800">
+                {format(new Date(slot.start_time), "HH:mm")} - {format(new Date(slot.end_time), "HH:mm")}
+              </p>
+              <div className="flex flex-wrap items-center gap-1 mt-1">
+                {slot.is_available ? (
+                  <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 text-[11px]">
+                    {hasHistory ? "Reciclado (Livre)" : "Livre"}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-slate-700 border-slate-300 bg-slate-100 text-[11px] font-medium">
+                    Reservado
+                  </Badge>
+                )}
+                {slot.requires_24h_advance && (
+                  <Badge variant="secondary" className="bg-amber-100 text-amber-700 text-[10px]">
+                    <ShieldAlert className="w-3 h-3 mr-0.5" />
+                    24h
+                  </Badge>
+                )}
+                {slotConflict.hasConflict && (
+                  <Badge variant="destructive" className="bg-red-600 text-white text-[10px] animate-pulse">
+                    ⚠️ Choque no Setor
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="font-semibold text-slate-800">
-              {format(new Date(slot.start_time), "HH:mm")} - {format(new Date(slot.end_time), "HH:mm")}
-            </p>
-            {slot.is_available ? (
-              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50 mr-2">
-                {/* Etiqueta inteligente: avisa o porquê de não poder ser apagado */}
-                {hasHistory ? "Reciclado (Livre)" : "Livre"}
-              </Badge>
-            ) : (
-              <Badge variant="outline" className="text-slate-500 border-slate-200 mr-2">Reservado</Badge>
-            )}
-            {slot.requires_24h_advance && (
-              <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100 mt-1 inline-flex w-fit">
-                <ShieldAlert className="w-3 h-3 mr-1" />
-                Requer 24h
-              </Badge>
-            )}
-          </div>
+
+          {slot.is_available && !hasHistory && (
+            <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50 h-8 w-8 shrink-0" onClick={() => handleDelete(slot.id)}>
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          )}
         </div>
 
-        {/* Lixeira só renderiza se estiver Livre E nunca tiver tido agendamentos */}
-        {slot.is_available && !hasHistory && (
-          <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(slot.id)}>
-            <Trash2 className="w-4 h-4" />
+        {!slot.is_available && activeAppt && (
+          <div className="bg-slate-100 p-2 rounded border border-slate-200 text-xs space-y-1 mt-1">
+            <p className="font-semibold text-indigo-800 truncate">
+              🏫 {schoolName || "Escola Agendada"}
+            </p>
+            {activeAppt.description && (
+              <p className="text-slate-600 truncate">Pauta: {activeAppt.description}</p>
+            )}
+          </div>
+        )}
+
+        {slotConflict.hasConflict && (
+          <div className="bg-red-100/70 border border-red-200 p-2 rounded text-[11px] text-red-900 flex items-start gap-1.5 mt-1">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+            <span>{slotConflict.message}</span>
+          </div>
+        )}
+
+        {!slot.is_available && activeAppt && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full text-xs text-indigo-700 border-indigo-200 hover:bg-indigo-50 flex items-center justify-center gap-1.5 mt-1 h-8"
+            onClick={() => openRescheduleModal(slot)}
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+            Alterar Horário
           </Button>
         )}
       </div>
     );
   };
+
+  const sectorConflicts = timeslots.filter(s => getSlotOverlapConflict(s).hasConflict);
 
   return (
     <div className="space-y-6 animate-fade-in pb-10 max-w-4xl mx-auto">
@@ -336,6 +518,22 @@ export default function TimeslotsPage() {
         )}
       </div>
 
+      {sectorConflicts.length > 0 && (
+        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-lg shadow-sm flex items-center justify-between gap-3 animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-6 h-6 text-red-600 shrink-0" />
+            <div>
+              <h4 className="font-semibold text-red-900 text-sm">
+                Atenção: Existem {sectorConflicts.length} vaga(s) com choque de horário neste setor!
+              </h4>
+              <p className="text-xs text-red-700">
+                Horários sobrepostos foram destacados em vermelho abaixo. Utilize a opção "Alterar Horário" nas vagas reservadas para ajustá-las.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Card className="border-indigo-100 shadow-sm">
         <CardHeader className="bg-indigo-50/50 pb-4">
           <CardTitle className="flex items-center gap-2 text-indigo-800">
@@ -345,7 +543,6 @@ export default function TimeslotsPage() {
         </CardHeader>
         <CardContent className="pt-6">
           <form onSubmit={handleCreate} className="space-y-4">
-            {/* Seletor de Modo de Criação */}
             <div className="flex flex-wrap items-center gap-2 mb-2 p-1 bg-slate-100 rounded-lg w-fit">
               <button
                 type="button"
@@ -373,7 +570,6 @@ export default function TimeslotsPage() {
               </button>
             </div>
 
-            {/* Inputs de Data conforme modo */}
             {creationMode === "single" ? (
               <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
                 <div className="space-y-2">
@@ -618,6 +814,105 @@ export default function TimeslotsPage() {
           </TabsContent>
         </Tabs>
       )}
+
+      <Dialog open={isRescheduleModalOpen} onOpenChange={setIsRescheduleModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-indigo-700">
+              <CalendarDays className="w-5 h-5" />
+              Alterar Horário do Agendamento
+            </DialogTitle>
+            <DialogDescription>
+              Reagende o atendimento da escola para um novo horário livre do setor sem sobreposição.
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingAppointment && (
+            <div className="space-y-4 py-2">
+              <div className="bg-slate-50 p-3 rounded-md border text-sm space-y-1">
+                <p className="font-semibold text-slate-800">
+                  Escola: {editingAppointment.profiles?.unidades_escolares?.nome_escola || editingAppointment.profiles?.name || "Não informada"}
+                </p>
+                <p className="text-xs text-slate-600">
+                  Horário Atual: {format(new Date(editingAppointment.timeslots.start_time), "dd/MM/yyyy 'às' HH:mm")}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Selecione uma Nova Vaga Disponível</label>
+                {timeslots.filter(s => s.is_available && new Date(s.start_time) >= new Date()).length === 0 ? (
+                  <p className="text-xs text-amber-700 bg-amber-50 p-3 rounded border border-amber-200">
+                    Nenhum outro horário livre disponível neste setor. Crie uma nova vaga livre acima primeiro.
+                  </p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto border rounded-md p-2 bg-white">
+                    {timeslots
+                      .filter(s => s.is_available && new Date(s.start_time) >= new Date())
+                      .map((slot) => {
+                        const isSelected = selectedNewSlotId === slot.id;
+                        const conflict = getSlotOverlapConflict(slot);
+
+                        return (
+                          <button
+                            key={slot.id}
+                            type="button"
+                            onClick={() => !conflict.hasConflict && setSelectedNewSlotId(slot.id)}
+                            disabled={conflict.hasConflict}
+                            className={`w-full text-left p-2.5 rounded border text-xs flex items-center justify-between transition-all ${
+                              conflict.hasConflict
+                                ? "opacity-50 cursor-not-allowed bg-slate-50 border-slate-200"
+                                : isSelected
+                                  ? "border-indigo-600 bg-indigo-50 ring-1 ring-indigo-600 font-semibold"
+                                  : "hover:border-indigo-300"
+                            }`}
+                          >
+                            <div>
+                              <p className="font-medium text-slate-800">
+                                {format(new Date(slot.start_time), "dd/MM/yyyy", { locale: ptBR })}
+                              </p>
+                              <p className="text-slate-500">
+                                {format(new Date(slot.start_time), "HH:mm")} - {format(new Date(slot.end_time), "HH:mm")}
+                              </p>
+                            </div>
+                            {conflict.hasConflict && (
+                              <span className="text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded font-medium">
+                                Sobrepõe outra vaga
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Motivo do Reagendamento (Enviado para a escola)</label>
+                <Textarea
+                  placeholder="Ex: Ajuste para resolver sobreposição de horários no setor..."
+                  value={rescheduleReason}
+                  onChange={(e) => setRescheduleReason(e.target.value)}
+                  rows={3}
+                  className="bg-white"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRescheduleModalOpen(false)} disabled={savingReschedule}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              onClick={handleConfirmReschedule}
+              disabled={savingReschedule || !selectedNewSlotId}
+            >
+              {savingReschedule ? "Salvar Reagendamento..." : "Confirmar e Notificar Escola"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
