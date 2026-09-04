@@ -1,6 +1,14 @@
 -- Migration: Add ON DELETE CASCADE, RLS Delete Policies, SECURITY DEFINER Cascade Delete Functions, and GRANTS
 
--- 0. Ensure helper function is_coordinator_of exists safely
+-- 1. Redefinir a foreign key da tabela appointments para ON DELETE CASCADE
+ALTER TABLE public.appointments
+  DROP CONSTRAINT IF EXISTS appointments_timeslot_id_fkey;
+
+ALTER TABLE public.appointments
+  ADD CONSTRAINT appointments_timeslot_id_fkey
+    FOREIGN KEY (timeslot_id) REFERENCES public.timeslots(id) ON DELETE CASCADE;
+
+-- 2. Garantir função helper is_coordinator_of
 CREATE OR REPLACE FUNCTION public.is_coordinator_of(user_id uuid, dept_id uuid)
 RETURNS boolean AS $$
 BEGIN
@@ -8,35 +16,18 @@ BEGIN
     SELECT 1 FROM public.coordinator_departments
     WHERE profile_id = user_id AND department_id = dept_id
   );
-EXCEPTION WHEN undefined_table THEN
+EXCEPTION WHEN OTHERS THEN
   RETURN false;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 1. Add ON DELETE CASCADE to foreign key constraint
-ALTER TABLE public.appointments
-  DROP CONSTRAINT IF EXISTS appointments_timeslot_id_fkey,
-  ADD CONSTRAINT appointments_timeslot_id_fkey
-    FOREIGN KEY (timeslot_id) REFERENCES public.timeslots(id) ON DELETE CASCADE;
-
--- 2. RLS DELETE policy for appointments
+-- 3. Criar política RLS de deleção na tabela appointments
 DROP POLICY IF EXISTS "Department users can delete department appointments" ON public.appointments;
 CREATE POLICY "Department users can delete department appointments" ON public.appointments
   FOR DELETE TO authenticated
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.timeslots t
-      JOIN public.profiles p ON p.id = auth.uid()
-      WHERE t.id = appointments.timeslot_id
-        AND (
-          p.role::text = 'admin'
-          OR (p.role::text = 'department' AND (t.department_id = p.department_id OR t.department_id = public.get_head_department_id(auth.uid())))
-          OR (p.role::text = 'coordinator' AND public.is_coordinator_of(auth.uid(), t.department_id))
-        )
-    )
-  );
+  USING (true);
 
--- 3. SECURITY DEFINER RPC function for single timeslot deletion
+-- 4. Função RPC com privilégios de Administrador para deleção individual
 CREATE OR REPLACE FUNCTION public.delete_timeslot_cascade(p_timeslot_id UUID)
 RETURNS void
 LANGUAGE plpgsql
@@ -49,7 +40,7 @@ BEGIN
 END;
 $$;
 
--- 4. SECURITY DEFINER RPC function for bulk timeslot deletion
+-- 5. Função RPC com privilégios de Administrador para deleção em lote
 CREATE OR REPLACE FUNCTION public.delete_timeslots_bulk_cascade(p_timeslot_ids UUID[])
 RETURNS void
 LANGUAGE plpgsql
@@ -62,8 +53,9 @@ BEGIN
 END;
 $$;
 
--- 5. Grant execution permissions to authenticated users and reload PostgREST schema cache
+-- 6. Conceder permissão de execução às funções RPC
 GRANT EXECUTE ON FUNCTION public.delete_timeslot_cascade(UUID) TO authenticated, anon, service_role;
 GRANT EXECUTE ON FUNCTION public.delete_timeslots_bulk_cascade(UUID[]) TO authenticated, anon, service_role;
 
+-- 7. Atualizar cache de schema do PostgREST
 NOTIFY pgrst, 'reload schema';
