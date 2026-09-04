@@ -383,13 +383,14 @@ export default function TimeslotsPage() {
     if (!window.confirm("Tem certeza que deseja apagar este horário?")) return;
 
     try {
-      // Deleta agendamentos cancelados ou históricos órfãos dessa vaga para evitar erro de chave estrangeira
-      await supabase.from("appointments").delete().eq("timeslot_id", id).neq("status", "active");
+      // 1. Apaga quaisquer agendamentos (ativos, cancelados ou históricos) vinculados a esta vaga
+      await supabase.from("appointments").delete().eq("timeslot_id", id);
 
+      // 2. Apaga a vaga (timeslot)
       const { error } = await supabase.from("timeslots").delete().eq("id", id);
       if (error) throw error;
 
-      toast({ title: "Sucesso", description: "Horário apagado." });
+      toast({ title: "Sucesso", description: "Horário apagado com sucesso." });
       if (departmentId) fetchTimeslots(departmentId);
     } catch (error: any) {
       toast({ title: "Erro ao apagar", description: translateError(error), variant: "destructive" });
@@ -399,7 +400,7 @@ export default function TimeslotsPage() {
   const handleBulkDeleteExpired = async () => {
     if (!window.confirm("Deseja apagar os horários expirados órfãos (que nunca tiveram agendamento)? Esta ação é irreversível.")) return;
 
-    // 💡 CORREÇÃO 2: Só apaga os que estão no passado, livres, e SEM agendamento ativo
+    // Só apaga os que estão no passado e livres (sem agendamento ativo)
     const expiredUnusedIds = timeslots
       .filter(t => {
         const activeAppts = Array.isArray(t.appointments) ? t.appointments.filter((a: any) => a && a.status === "active") : [];
@@ -408,12 +409,15 @@ export default function TimeslotsPage() {
       .map(t => t.id);
 
     if (expiredUnusedIds.length === 0) {
-      toast({ title: "Atenção", description: "Todos os horários expirados possuem histórico no banco de dados e não podem ser apagados por segurança." });
+      toast({ title: "Atenção", description: "Nenhum horário livre expirado para apagar." });
       return;
     }
 
     try {
-      await supabase.from("appointments").delete().in("timeslot_id", expiredUnusedIds).neq("status", "active");
+      // 1. Apaga apontamentos vinculados a estes timeslots expirados
+      await supabase.from("appointments").delete().in("timeslot_id", expiredUnusedIds);
+
+      // 2. Apaga os timeslots
       const { error } = await supabase.from("timeslots").delete().in('id', expiredUnusedIds);
       if (error) throw error;
 
