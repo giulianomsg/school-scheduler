@@ -334,6 +334,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_email_exists: { Args: { check_email: string }; Returns: boolean }
       delete_timeslot_cascade: {
         Args: { p_timeslot_id: string }
         Returns: undefined
