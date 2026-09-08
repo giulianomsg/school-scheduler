@@ -74,6 +74,42 @@ export type Database = {
           },
         ]
       }
+      coordinator_departments: {
+        Row: {
+          created_at: string
+          department_id: string
+          id: string
+          profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          department_id: string
+          id?: string
+          profile_id: string
+        }
+        Update: {
+          created_at?: string
+          department_id?: string
+          id?: string
+          profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coordinator_departments_department_id_fkey"
+            columns: ["department_id"]
+            isOneToOne: false
+            referencedRelation: "departments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coordinator_departments_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departments: {
         Row: {
           created_at: string
