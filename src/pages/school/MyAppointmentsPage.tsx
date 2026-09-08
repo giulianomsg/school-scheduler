@@ -299,7 +299,8 @@ export default function MyAppointmentsPage() {
                     </div>
                   )}
                 </div>
-              </CardContent>
+                </CardContent>
+              </Card>
             );
           })
         )}
