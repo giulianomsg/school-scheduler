@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Star } from "lucide-react";
+import { Star, AlertCircle } from "lucide-react";
 import { translateError } from "@/lib/errorTranslations";
 
 interface Appointment {
@@ -205,72 +205,78 @@ export default function MyAppointmentsPage() {
             </CardContent>
           </Card>
         ) : (
-          appointments.map((appt) => (
-            <Card key={appt.id}>
-              <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between gap-4">
-                <div className="space-y-2 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-lg">{appt.timeslots?.departments?.name}</h3>
-                    {statusBadge(appt.status)}
+          appointments.map((appt) => {
+            const slot = Array.isArray(appt.timeslots) ? appt.timeslots[0] : appt.timeslots;
+            const startTimeStr = slot?.start_time;
+
+            return (
+              <Card key={appt.id}>
+                <CardContent className="p-4 sm:p-6 flex flex-col sm:flex-row justify-between gap-4">
+                  <div className="space-y-2 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-lg">{slot?.departments?.name || "Setor"}</h3>
+                      {statusBadge(appt.status)}
+                      {conflictMap[appt.id]?.hasConflict && (
+                        <Badge variant="destructive" className="bg-red-600 text-white font-semibold animate-pulse">
+                          ⚠️ Choque de Horário
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">{appt.description}</p>
+                    {startTimeStr && (
+                      <p className="text-sm font-medium">
+                        {format(new Date(startTimeStr), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
+                      </p>
+                    )}
+
+                    {/* Alerta Visual de Conflito */}
                     {conflictMap[appt.id]?.hasConflict && (
-                      <Badge variant="destructive" className="bg-red-600 text-white font-semibold animate-pulse">
-                        ⚠️ Choque de Horário
-                      </Badge>
+                      <div className="bg-red-50 border border-red-200 text-red-900 p-3 rounded-md text-xs space-y-1 my-2">
+                        <p className="font-semibold flex items-center gap-1.5 text-red-800">
+                          <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                          Choque de horário identificado!
+                        </p>
+                        <p>{conflictMap[appt.id].message}</p>
+                        <p className="text-[11px] text-red-700 italic">O setor responsável pode ajustar o horário para sanar este conflito.</p>
+                      </div>
+                    )}
+
+                    {/* Exibição do Atendente Solicitado (Opcional) */}
+                    {appt.requested_attendant && (
+                      <div className="inline-flex items-center gap-1 mt-1">
+                        <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
+                          Atendente Solicitado: {appt.requested_attendant.name}
+                        </Badge>
+                      </div>
+                    )}
+
+                    {/* Exibição da Nota do Departamento se o status for Concluído */}
+                    {appt.status === "completed" && appt.department_notes && (
+                      <div className="mt-3 bg-slate-50 p-3 rounded-md border border-slate-100 text-sm">
+                        <p className="font-semibold text-xs text-slate-500 mb-1">Feedback do Setor:</p>
+                        <p className="text-slate-700">{appt.department_notes}</p>
+                      </div>
+                    )}
+
+                    {/* Exibição do Motivo do Cancelamento */}
+                    {appt.status === "cancelled" && appt.cancel_reason && (
+                      <div className="mt-3 bg-red-50 p-3 rounded-md text-sm text-red-800 border border-red-100">
+                        <p className="font-semibold text-xs mb-1">Motivo do Cancelamento:</p>
+                        <p>{appt.cancel_reason}</p>
+                      </div>
                     )}
                   </div>
-                  <p className="text-sm text-muted-foreground">{appt.description}</p>
-                  <p className="text-sm font-medium">
-                    {format(new Date(appt.timeslots.start_time), "dd 'de' MMMM 'às' HH:mm", { locale: ptBR })}
-                  </p>
 
-                  {/* Alerta Visual de Conflito */}
-                  {conflictMap[appt.id]?.hasConflict && (
-                    <div className="bg-red-50 border border-red-200 text-red-900 p-3 rounded-md text-xs space-y-1 my-2">
-                      <p className="font-semibold flex items-center gap-1.5 text-red-800">
-                        <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-                        Choque de horário identificado!
-                      </p>
-                      <p>{conflictMap[appt.id].message}</p>
-                      <p className="text-[11px] text-red-700 italic">O setor responsável pode ajustar o horário para sanar este conflito.</p>
-                    </div>
-                  )}
-
-                  {/* Exibição do Atendente Solicitado (Opcional) */}
-                  {appt.requested_attendant && (
-                    <div className="inline-flex items-center gap-1 mt-1">
-                      <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">
-                        Atendente Solicitado: {appt.requested_attendant.name}
-                      </Badge>
-                    </div>
-                  )}
-
-                  {/* Exibição da Nota do Departamento se o status for Concluído */}
-                  {appt.status === "completed" && appt.department_notes && (
-                    <div className="mt-3 bg-slate-50 p-3 rounded-md border border-slate-100 text-sm">
-                      <p className="font-semibold text-xs text-slate-500 mb-1">Feedback do Setor:</p>
-                      <p className="text-slate-700">{appt.department_notes}</p>
-                    </div>
-                  )}
-
-                  {/* Exibição do Motivo do Cancelamento */}
-                  {appt.status === "cancelled" && appt.cancel_reason && (
-                    <div className="mt-3 bg-red-50 p-3 rounded-md text-sm text-red-800 border border-red-100">
-                      <p className="font-semibold text-xs mb-1">Motivo do Cancelamento:</p>
-                      <p>{appt.cancel_reason}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex flex-col items-end gap-2 justify-start min-w-[160px]">
-                  {/* Trava Visual: Oculta Cancelar se o horário já passou */}
-                  {appt.status === "active" && new Date(appt.timeslots.start_time) > new Date() && (
-                    <Button
-                      variant="destructive"
-                      onClick={() => handleCancel(appt.id, appt.timeslots.start_time)}
-                    >
-                      Cancelar
-                    </Button>
-                  )}
+                  <div className="flex flex-col items-end gap-2 justify-start min-w-[160px]">
+                    {/* Trava Visual: Oculta Cancelar se o horário já passou */}
+                    {appt.status === "active" && startTimeStr && new Date(startTimeStr) > new Date() && (
+                      <Button
+                        variant="destructive"
+                        onClick={() => handleCancel(appt.id, startTimeStr)}
+                      >
+                        Cancelar
+                      </Button>
+                    )}
 
                   {/* Botão de Avaliação (Só aparece se estiver concluído) */}
                   {appt.status === "completed" && (
@@ -294,8 +300,8 @@ export default function MyAppointmentsPage() {
                   )}
                 </div>
               </CardContent>
-            </Card>
-          ))
+            );
+          })
         )}
       </div>
 

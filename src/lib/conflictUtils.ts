@@ -41,9 +41,12 @@ export function checkAppointmentConflict(
     if (targetApptId && appt.id === targetApptId) continue;
     if (appt.status !== "active" || !appt.timeslots) continue;
 
-    const appStart = new Date(appt.timeslots.start_time).getTime();
-    const appEnd = new Date(appt.timeslots.end_time).getTime();
-    const deptName = appt.timeslots.departments?.name || "outro setor";
+    const slot = Array.isArray(appt.timeslots) ? appt.timeslots[0] : appt.timeslots;
+    if (!slot || !slot.start_time || !slot.end_time) continue;
+
+    const appStart = new Date(slot.start_time).getTime();
+    const appEnd = new Date(slot.end_time).getTime();
+    const deptName = slot.departments?.name || "outro setor";
 
     // 1. Direct Overlap Check: tsStart < appEnd && tsEnd > appStart
     if (tsStart < appEnd && tsEnd > appStart) {
