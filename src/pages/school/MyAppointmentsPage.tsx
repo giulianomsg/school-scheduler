@@ -29,6 +29,7 @@ interface Appointment {
   requested_attendant?: { name: string } | null;
   timeslots: {
     start_time: string;
+    end_time: string;
     department_id: string;
     departments: { name: string; };
   };
@@ -299,7 +300,8 @@ export default function MyAppointmentsPage() {
                     </div>
                   )}
                 </div>
-              </CardContent>
+                </CardContent>
+              </Card>
             );
           })
         )}
