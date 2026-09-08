@@ -77,23 +77,34 @@ export type Database = {
       departments: {
         Row: {
           created_at: string
+          head_id: string | null
           id: string
           name: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          head_id?: string | null
           id?: string
           name: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          head_id?: string | null
           id?: string
           name?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "departments_head_id_fkey"
+            columns: ["head_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       notifications: {
         Row: {
@@ -314,7 +325,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "department" | "school"
+      app_role: "admin" | "department" | "school" | "coordinator"
       appointment_status: "active" | "cancelled" | "completed" | "no-show"
     }
     CompositeTypes: {
@@ -443,7 +454,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "department", "school"],
+      app_role: ["admin", "department", "school", "coordinator"],
       appointment_status: ["active", "cancelled", "completed", "no-show"],
     },
   },
