@@ -597,7 +597,7 @@ export default function UsersPage() {
     if (meta?.banned_until && new Date(meta.banned_until).getTime() > Date.now()) {
       return "suspended";
     }
-    if (meta?.last_sign_in_at || authUsers[p.id]) {
+    if (meta?.last_sign_in_at || authUsers[p.id] || meta?.email_confirmed_at) {
       return "activated";
     }
     return "never";
@@ -676,8 +676,8 @@ export default function UsersPage() {
       aVal = roleLabels[a.role] || a.role;
       bVal = roleLabels[b.role] || b.role;
     } else if (key === "last_sign_in_at") {
-      aVal = authMetadata[a.id]?.last_sign_in_at || authUsers[a.id] || "";
-      bVal = authMetadata[b.id]?.last_sign_in_at || authUsers[b.id] || "";
+      aVal = authMetadata[a.id]?.last_sign_in_at || authUsers[a.id] || authMetadata[a.id]?.email_confirmed_at || "";
+      bVal = authMetadata[b.id]?.last_sign_in_at || authUsers[b.id] || authMetadata[b.id]?.email_confirmed_at || "";
     } else if (key === "user_status") {
       aVal = getUserStatus(a);
       bVal = getUserStatus(b);
@@ -716,13 +716,24 @@ export default function UsersPage() {
     return sortConfig.direction === "asc" ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />;
   };
   
-  const formatLastSignIn = (isoString?: string | null) => {
-    if (!isoString) return "Nunca logou";
-    try {
-      return new Date(isoString).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-    } catch {
-      return "Data inválida";
+  const formatLastSignIn = (profileId: string) => {
+    const meta = authMetadata[profileId];
+    const lastSignIn = meta?.last_sign_in_at || authUsers[profileId];
+    if (lastSignIn) {
+      try {
+        return new Date(lastSignIn).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+      } catch {
+        return "Data inválida";
+      }
     }
+    if (meta?.email_confirmed_at) {
+      try {
+        return `Confirmado (${new Date(meta.email_confirmed_at).toLocaleDateString('pt-BR')})`;
+      } catch {
+        return "Conta Confirmada";
+      }
+    }
+    return "Nunca logou";
   };
 
   return (
@@ -1228,7 +1239,7 @@ export default function UsersPage() {
                           {p.created_at ? new Date(p.created_at).toLocaleDateString('pt-BR') : "—"}
                         </TableCell>
                         <TableCell className="whitespace-nowrap text-muted-foreground text-xs">
-                          {formatLastSignIn(authMetadata[p.id]?.last_sign_in_at || authUsers[p.id])}
+                          {formatLastSignIn(p.id)}
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>

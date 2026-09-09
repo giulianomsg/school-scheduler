@@ -211,11 +211,33 @@ Deno.serve(async (req) => {
       }
 
       case "listAuthUsers": {
-        const { data: { users }, error } = await supabaseAdmin.auth.admin.listUsers();
-        if (error) throw error;
+        let allUsers: any[] = [];
+        let page = 1;
+        const perPage = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+            page,
+            perPage,
+          });
+          if (error) throw error;
+          const users = data?.users || [];
+          if (users.length > 0) {
+            allUsers = allUsers.concat(users);
+            if (users.length < perPage) {
+              hasMore = false;
+            } else {
+              page++;
+            }
+          } else {
+            hasMore = false;
+          }
+        }
+
         result = {
           success: true,
-          users: users.map(u => ({
+          users: allUsers.map(u => ({
             id: u.id,
             last_sign_in_at: u.last_sign_in_at,
             email_confirmed_at: u.email_confirmed_at || (u as any).confirmed_at,
