@@ -383,12 +383,13 @@ export default function TimeslotsPage() {
     if (!window.confirm("Tem certeza que deseja apagar este horário?")) return;
 
     try {
-      // 1. Tenta deletar via RPC definer para ignorar restrições RLS em tabelas secundárias
+      // 1. Apaga previamente agendamentos associados (inclusive os cancelados)
+      await supabase.from("appointments").delete().eq("timeslot_id", id);
+
+      // 2. Tenta deletar via RPC ou chamada direta
       const { error: rpcError } = await supabase.rpc("delete_timeslot_cascade", { p_timeslot_id: id });
 
       if (rpcError) {
-        // Fallback: Apaga via chamadas diretas
-        await supabase.from("appointments").delete().eq("timeslot_id", id);
         const { error: deleteError } = await supabase.from("timeslots").delete().eq("id", id);
         if (deleteError) throw deleteError;
       }
@@ -417,12 +418,13 @@ export default function TimeslotsPage() {
     }
 
     try {
-      // 1. Tenta deletar em lote via RPC definer
+      // 1. Apaga previamente agendamentos em lote
+      await supabase.from("appointments").delete().in("timeslot_id", expiredUnusedIds);
+
+      // 2. Tenta deletar em lote via RPC ou chamada direta
       const { error: rpcError } = await supabase.rpc("delete_timeslots_bulk_cascade", { p_timeslot_ids: expiredUnusedIds });
 
       if (rpcError) {
-        // Fallback: Apaga via chamadas diretas
-        await supabase.from("appointments").delete().in("timeslot_id", expiredUnusedIds);
         const { error: deleteError } = await supabase.from("timeslots").delete().in('id', expiredUnusedIds);
         if (deleteError) throw deleteError;
       }
