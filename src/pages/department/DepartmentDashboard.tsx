@@ -244,7 +244,14 @@ export default function DepartmentDashboard() {
       return;
     }
     try {
+      const targetAppt = allAppointments.find(a => a.id === appointmentId);
+      const timeslotId = targetAppt?.timeslots?.id;
+
       await supabase.from("appointments").update({ status: "cancelled", cancel_reason: reason }).eq("id", appointmentId);
+
+      if (timeslotId) {
+        await supabase.from("timeslots").update({ is_available: true }).eq("id", timeslotId);
+      }
 
       // 💡 NOTIFICAÇÃO ATUALIZADA: Inclui o nome do Setor
       await supabase.from("notifications").insert({

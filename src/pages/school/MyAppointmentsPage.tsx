@@ -107,6 +107,11 @@ export default function MyAppointmentsPage() {
       await supabase.from("appointments").update({ status: "cancelled" }).eq("id", id);
 
       const appt = appointments.find(a => a.id === id);
+      const timeslotId = (appt as any)?.timeslot_id || (appt as any)?.timeslots?.id;
+      if (timeslotId) {
+        await supabase.from("timeslots").update({ is_available: true }).eq("id", timeslotId);
+      }
+
       if (appt && appt.timeslots?.department_id) {
 
         // 💡 BUSCA O NOME DA ESCOLA DO USUÁRIO LOGADO
